@@ -4,6 +4,8 @@ import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { Pool } from "pg";
 
+export const dynamic = "force-dynamic";
+
 export async function POST() {
   try {
     const session = await auth.api.getSession({
