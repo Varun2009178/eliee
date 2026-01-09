@@ -7,7 +7,13 @@ let authInstance: ReturnType<typeof betterAuth> | null = null;
 
 function getAuth() {
   if (!authInstance) {
+    // Get base URL for production
+    const baseURL = process.env.NEXT_PUBLIC_APP_URL || 
+                    process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 
+                    "http://localhost:3000";
+
     authInstance = betterAuth({
+      baseURL,
       database: new Pool({
         connectionString: process.env.DATABASE_URL || "postgresql://placeholder",
         ssl: { rejectUnauthorized: false }, // Required for Supabase
