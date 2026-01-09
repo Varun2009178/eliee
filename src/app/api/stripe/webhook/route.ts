@@ -4,13 +4,15 @@ import { updateUserProStatus } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: "2025-12-15.clover",
-});
-
-const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!;
+function getStripe() {
+  return new Stripe(process.env.STRIPE_SECRET_KEY || "sk_test_placeholder", {
+    apiVersion: "2025-12-15.clover",
+  });
+}
 
 export async function POST(req: NextRequest) {
+  const stripe = getStripe();
+  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET || "whsec_placeholder";
   try {
     const body = await req.text();
     const signature = req.headers.get("stripe-signature")!;

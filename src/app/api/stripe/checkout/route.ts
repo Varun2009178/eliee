@@ -3,11 +3,14 @@ import Stripe from "stripe";
 
 export const dynamic = "force-dynamic";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: "2025-12-15.clover",
-});
+function getStripe() {
+  return new Stripe(process.env.STRIPE_SECRET_KEY || "sk_test_placeholder", {
+    apiVersion: "2025-12-15.clover",
+  });
+}
 
 export async function POST(req: NextRequest) {
+  const stripe = getStripe();
   try {
     const body = await req.json();
     const { userId } = body;
