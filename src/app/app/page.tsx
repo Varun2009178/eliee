@@ -751,17 +751,17 @@ export default function AppPage() {
         .replace(/\*\*(.*?)\*\*/g, '$1') // Remove bold
         .replace(/\*(.*?)\*/g, '$1') // Remove italic
         .replace(/^#{1,6}\s+/gm, '') // Remove headers
-        .replace(/```[\s\S]*?```/g, (match) => match.replace(/```/g, '')) // Remove code blocks but keep content
+        .replace(/```[\s\S]*?```/g, (match: string) => match.replace(/```/g, '')) // Remove code blocks but keep content
         .replace(/`([^`]+)`/g, '$1') // Remove inline code
         .trim();
 
       // For synonyms, format as a clean list
       if (action === "synonyms") {
-        const lines = formattedResult.split('\n').filter(l => l.trim());
-        formattedResult = lines.map((line, i) => {
+        const lines = formattedResult.split('\n').filter((l: string) => l.trim());
+        formattedResult = lines.map((line: string) => {
           const cleaned = line.replace(/^[-•*]\s*/, '').replace(/^\d+\.\s*/, '').trim();
           return cleaned;
-        }).filter(l => l.length > 0).join('\n');
+        }).filter((l: string) => l.length > 0).join('\n');
       }
 
       setFocusChat(prev => [...prev, { role: "assistant", content: formattedResult }]);

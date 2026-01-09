@@ -35,24 +35,15 @@ export async function POST(req: NextRequest) {
 
         const buffer = Buffer.from(await file.arrayBuffer());
         
-        // Use a simpler approach if the above fails - passing disableWorker: true
-        const parser = new PDFParse({ 
+        // Parse the PDF
+        const parser = new PDFParse({
           data: buffer,
-          disableWorker: true,
           verbosity: 0
         });
         
-        // getInfo provides more metadata and sometimes cleaner extraction
+        // Extract text from PDF
         const result = await parser.getText();
-        let text = result.text;
-        
-        // Fallback or cleanup if text is too squished (basic heuristic)
-        if (text && text.length > 100 && !text.includes(' ')) {
-          // If there are no spaces, it might be a parsing error with that specific PDF
-          // We can try to get it page by page which sometimes helps with spacing
-          const info = await parser.getInfo({ parsePageInfo: true });
-          text = info.pages.map(p => p.text || "").join("\n\n");
-        }
+        const text = result.text;
         
         // Combine the prompt with the extracted text
         prompt = `User Question: ${prompt}\n\nPDF Content to Analyze:\n${text}`;
