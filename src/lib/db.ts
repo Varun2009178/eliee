@@ -203,21 +203,52 @@ export async function updateUserUsage(userId: string, usage: Record<string, numb
 // Update user pro status
 export async function updateUserProStatus(userId: string, isPro: boolean): Promise<void> {
   try {
-    const { error } = await supabase
-      .from('user_usage')
-      .upsert({
-        user_id: userId,
-        is_pro: isPro,
-        updated_at: new Date().toISOString()
-      }, {
-        onConflict: 'user_id'
-      })
+    // First check if user exists
+    const existing = await getUserUsage(userId);
 
-    if (error) {
-      console.error("Update user pro status error:", error);
-      throw error
+    if (existing) {
+      // Update existing row - only update is_pro field
+      const { error } = await supabase
+        .from('user_usage')
+        .update({
+          is_pro: isPro,
+          // If upgrading to Pro, set premium reset date to next month
+          ...(isPro && !existing.premium_reset_date ? {
+            premium_reset_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+            premium_prompts_used: 0,
+            premium_prompts_limit: 150
+          } : {}),
+          updated_at: new Date().toISOString()
+        })
+        .eq('user_id', userId);
+
+      if (error) {
+        console.error("Update user pro status error:", error);
+        throw error;
+      }
+    } else {
+      // Create new row
+      const { error } = await supabase
+        .from('user_usage')
+        .insert({
+          user_id: userId,
+          is_pro: isPro,
+          focus_usage: {},
+          premium_prompts_used: 0,
+          premium_prompts_limit: 150,
+          premium_reset_date: isPro ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() : null,
+          visualizations_used: 0,
+          updated_at: new Date().toISOString()
+        });
+
+      if (error) {
+        console.error("Create user pro status error:", error);
+        throw error;
+      }
     }
+
+    console.log(`Successfully updated user ${userId} pro status to: ${isPro}`);
   } catch (err: any) {
-    console.warn("Failed to update user pro status:", err?.message || err);
+    console.error("Failed to update user pro status:", err?.message || err);
   }
 }

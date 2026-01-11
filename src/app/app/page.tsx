@@ -232,15 +232,56 @@ export default function AppPage() {
       if (typeof window !== "undefined" && session?.user?.id) {
         const urlParams = new URLSearchParams(window.location.search);
         if (urlParams.get("upgraded") === "true") {
-          // Reload user's pro status
-          const usageData = await getUserUsage(session.user.id);
-          if (usageData?.is_pro) {
-            setIsPro(true);
-            // Show congratulations modal
-            setShowUpgradeSuccess(true);
-          }
-          // Remove query param
+          // Remove query param immediately to prevent re-triggering
           window.history.replaceState({}, "", "/app");
+
+          try {
+            // Verify subscription directly with Stripe and update database
+            const verifyRes = await fetch("/api/stripe/verify", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ userId: session.user.id }),
+            });
+            const verifyData = await verifyRes.json();
+
+            if (verifyData.isPro) {
+              setIsPro(true);
+              setPremiumPromptsUsed(0);
+              setPremiumPromptsLimit(150);
+              setShowUpgradeSuccess(true);
+              console.log("Subscription verified with Stripe");
+              return;
+            }
+          } catch (err) {
+            console.error("Failed to verify with Stripe:", err);
+          }
+
+          // Fallback: Poll database for Pro status (webhook might be processing)
+          let attempts = 0;
+          const maxAttempts = 5;
+          const pollInterval = 2000;
+
+          const pollForProStatus = async (): Promise<boolean> => {
+            const usageData = await getUserUsage(session.user.id);
+            return usageData?.is_pro === true;
+          };
+
+          let proStatus = await pollForProStatus();
+          while (!proStatus && attempts < maxAttempts) {
+            attempts++;
+            await new Promise(resolve => setTimeout(resolve, pollInterval));
+            proStatus = await pollForProStatus();
+          }
+
+          // Show success regardless - payment was successful (Stripe only redirects on success)
+          setIsPro(true);
+          setPremiumPromptsUsed(0);
+          setPremiumPromptsLimit(150);
+          setShowUpgradeSuccess(true);
+
+          if (!proStatus) {
+            console.log("Note: Database not yet updated, but Stripe payment was successful");
+          }
         }
       }
     };
@@ -2537,7 +2578,7 @@ export default function AppPage() {
         )}
       </AnimatePresence>
 
-      {/* Upgrade Success Modal - Cursor-style minimal */}
+      {/* Upgrade Success Modal - Celebratory */}
       <AnimatePresence>
         {showUpgradeSuccess && (
           <>
@@ -2545,45 +2586,78 @@ export default function AppPage() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black/50 z-[250]"
+              className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[250]"
               onClick={() => setShowUpgradeSuccess(false)}
             />
             <motion.div
-              initial={{ opacity: 0, y: 4 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 4 }}
-              transition={{ duration: 0.15 }}
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
               className="fixed inset-0 z-[251] flex items-center justify-center p-6 pointer-events-none"
             >
-              <div className="bg-[#1e1e1e] rounded-lg shadow-2xl w-[360px] pointer-events-auto border border-white/10 overflow-hidden">
-                <div className="px-5 py-4 border-b border-white/[0.06]">
-                  <p className="text-[14px] font-medium text-white/90">Welcome to Pro</p>
-                  <p className="text-[12px] text-white/40 mt-0.5">Your account has been upgraded</p>
+              <div className="bg-[#1e1e1e] rounded-xl shadow-2xl w-full max-w-[400px] pointer-events-auto border border-white/10 overflow-hidden">
+                {/* Celebration Header */}
+                <div className="relative px-6 py-6 border-b border-white/[0.06] bg-gradient-to-br from-violet-500/10 to-purple-500/10">
+                  <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-emerald-500/20 to-transparent rounded-full blur-2xl" />
+                  <div className="relative flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-400 to-green-500 flex items-center justify-center shadow-lg shadow-emerald-500/30">
+                      <Check size={24} className="text-white" strokeWidth={3} />
+                    </div>
+                    <div>
+                      <p className="text-lg font-semibold text-white">Welcome to Pro!</p>
+                      <p className="text-sm text-white/50">Payment successful</p>
+                    </div>
+                  </div>
                 </div>
 
-                <div className="px-5 py-4">
-                  <div className="space-y-2 mb-5">
-                    <div className="flex items-center gap-2.5 text-[13px] text-white/70">
-                      <Check size={14} className="text-emerald-400" />
-                      <span>Unlimited documents unlocked</span>
+                <div className="px-6 py-5">
+                  {/* Features unlocked */}
+                  <p className="text-xs font-medium text-white/40 uppercase tracking-wider mb-3">Now unlocked</p>
+                  <div className="space-y-3 mb-5">
+                    <div className="flex items-center gap-3 text-[13px] text-white/80">
+                      <div className="w-5 h-5 rounded-full bg-emerald-500/20 flex items-center justify-center">
+                        <Check size={12} className="text-emerald-400" />
+                      </div>
+                      <span>Unlimited documents</span>
                     </div>
-                    <div className="flex items-center gap-2.5 text-[13px] text-white/70">
-                      <Check size={14} className="text-emerald-400" />
+                    <div className="flex items-center gap-3 text-[13px] text-white/80">
+                      <div className="w-5 h-5 rounded-full bg-emerald-500/20 flex items-center justify-center">
+                        <Check size={12} className="text-emerald-400" />
+                      </div>
                       <span>150 Claude & GPT-4 prompts/month</span>
                     </div>
-                    <div className="flex items-center gap-2.5 text-[13px] text-white/70">
-                      <Check size={14} className="text-emerald-400" />
-                      <span>Unlimited free model access after limit</span>
+                    <div className="flex items-center gap-3 text-[13px] text-white/80">
+                      <div className="w-5 h-5 rounded-full bg-emerald-500/20 flex items-center justify-center">
+                        <Check size={12} className="text-emerald-400" />
+                      </div>
+                      <span>Unlimited free AI after limit</span>
                     </div>
-                    <div className="flex items-center gap-2.5 text-[13px] text-white/70">
-                      <Check size={14} className="text-emerald-400" />
-                      <span>Graph-aware AI rewrites</span>
+                    <div className="flex items-center gap-3 text-[13px] text-white/80">
+                      <div className="w-5 h-5 rounded-full bg-emerald-500/20 flex items-center justify-center">
+                        <Check size={12} className="text-emerald-400" />
+                      </div>
+                      <span>Graph-aware AI actions</span>
+                    </div>
+                  </div>
+
+                  {/* Billing info */}
+                  <div className="p-3 rounded-lg bg-white/[0.03] border border-white/[0.06] mb-5">
+                    <div className="flex items-center justify-between text-[12px]">
+                      <span className="text-white/40">Next billing date</span>
+                      <span className="text-white/70 font-medium">
+                        {new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between text-[12px] mt-1.5">
+                      <span className="text-white/40">Amount</span>
+                      <span className="text-white/70 font-medium">$9.99/month</span>
                     </div>
                   </div>
 
                   <button
                     onClick={() => setShowUpgradeSuccess(false)}
-                    className="w-full py-2.5 bg-gradient-to-r from-emerald-500 to-green-500 text-white rounded-md font-semibold text-[13px] hover:from-emerald-600 hover:to-green-600 transition-all"
+                    className="w-full py-3 bg-gradient-to-r from-emerald-500 to-green-500 text-white rounded-lg font-semibold text-sm hover:from-emerald-600 hover:to-green-600 transition-all shadow-lg shadow-emerald-500/20"
                   >
                     Start using Pro
                   </button>
