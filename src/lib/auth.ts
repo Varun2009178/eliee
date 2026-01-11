@@ -15,6 +15,11 @@ function getBaseURL() {
 
 // Initialize auth instance
 export const auth = betterAuth({
+  trustedOrigins: [
+    "http://localhost:3000",
+    "https://eliee.vercel.app",
+    "https://eliee.com"
+  ],
   baseURL: getBaseURL(),
   database: new Pool({
     connectionString: process.env.DATABASE_URL || "postgresql://placeholder",
