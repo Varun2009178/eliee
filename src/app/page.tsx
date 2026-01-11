@@ -46,7 +46,7 @@ function LandingPage() {
             <>
               <a href="/auth" className="text-sm text-black/50 hover:text-black transition-colors">Sign in</a>
                     <a 
-                      href="/auth" 
+                      href="/get-started" 
                 className="px-4 py-1.5 rounded-lg bg-black text-white text-sm font-medium hover:bg-black/80 transition-colors"
                     >
                 Get started
@@ -60,10 +60,19 @@ function LandingPage() {
       <section className="flex flex-col relative min-h-[90vh]">
         {/* Text - Top Left */}
         <div className="px-4 md:px-6 pt-8 md:pt-12 pb-6 max-w-xl">
-                  <motion.h1 
+                  <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/5 border border-black/[0.08] mb-4"
+          >
+            <span className="text-[11px] md:text-xs font-medium text-black/60">AI-Native Google Docs for Thinking</span>
+          </motion.div>
+
+          <motion.h1
             initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5 }}
+            transition={{ duration: 0.5, delay: 0.05 }}
             className="text-[1.75rem] md:text-[2.5rem] lg:text-[3rem] leading-[1.15] tracking-tight text-black/90"
             style={{ fontFamily: "Georgia, 'Times New Roman', serif", fontStyle: "italic" }}
                   >
@@ -78,7 +87,7 @@ function LandingPage() {
             className="mt-6"
           >
             <a 
-              href="/auth"
+              href="/get-started"
               className="inline-flex items-center gap-2 px-5 py-2.5 md:px-6 md:py-3 rounded-xl bg-black text-white text-sm md:text-base font-medium hover:bg-black/80 transition-all"
             >
               Start writing
@@ -111,28 +120,42 @@ function LandingPage() {
                  </div>
               </div>
 
-              {/* Mobile: Stack vertically, Desktop: 3 columns */}
-              <div className="flex flex-col md:flex-row h-auto md:h-[360px]">
+              {/* Mobile: Stack vertically, Desktop: 3 columns - Cursor-style layout */}
+              <div className="flex flex-col md:flex-row h-auto md:h-[400px]">
                 {/* Sidebar - hidden on mobile */}
-                <div className="hidden md:flex w-48 border-r border-black/[0.06] bg-[#fafafa] p-3 flex-col">
+                <div className="hidden md:flex w-44 border-r border-black/[0.06] bg-[#fafafa] p-3 flex-col">
                   <div className="flex items-center gap-2 mb-4">
                     <img src="/eliee_logo.jpg" alt="" className="w-4 h-4 rounded" />
                     <span className="text-[10px] font-semibold text-black/70">Eliee</span>
                   </div>
-                  <div className="p-2 rounded-lg bg-white border border-black/[0.04] mb-3">
-                    <div className="flex items-center gap-2 text-black/50 text-[10px] mb-1">
+                  <div className="p-2 rounded-lg bg-white border border-black/[0.04] mb-2">
+                    <div className="flex items-center gap-2 text-black/60 text-[10px] mb-0.5">
                       <FileText size={10} />
                       <span>Strategy Doc</span>
                     </div>
                     <div className="text-[9px] text-black/30">127 words</div>
                   </div>
-                  <button className="w-full py-2 rounded-lg bg-black text-white text-[10px] font-medium flex items-center justify-center gap-1.5">
-                    <Eye size={12} />
-                    Visualize
-                  </button>
+                  <div className="p-2 rounded-lg hover:bg-white/50 transition-colors cursor-pointer">
+                    <div className="flex items-center gap-2 text-black/40 text-[10px]">
+                      <FileText size={10} />
+                      <span>Q1 Planning</span>
+                    </div>
+                  </div>
+                  <div className="p-2 rounded-lg hover:bg-white/50 transition-colors cursor-pointer">
+                    <div className="flex items-center gap-2 text-black/40 text-[10px]">
+                      <FileText size={10} />
+                      <span>Research Notes</span>
+                    </div>
+                  </div>
+                  <div className="mt-auto">
+                    <button className="w-full py-2 rounded-lg bg-black text-white text-[10px] font-medium flex items-center justify-center gap-1.5">
+                      <Eye size={12} />
+                      Visualize
+                    </button>
+                  </div>
                 </div>
 
-                {/* Main Doc */}
+                {/* Main Doc - Writing Area */}
                 <div className="flex-1 p-4 md:p-5 overflow-hidden">
                   <div className="mb-3">
                     <span className="text-[8px] md:text-[9px] font-medium uppercase tracking-wider text-black/20">Document</span>
@@ -165,40 +188,59 @@ function LandingPage() {
                  </div>
               </div>
 
-                {/* Logic Map */}
-                <div className="w-full md:w-56 border-t md:border-t-0 md:border-l border-black/[0.06] bg-[#fafafa] p-4 md:p-3">
+                {/* AI Assistant Panel - Cursor-style */}
+                <div className="w-full md:w-64 border-t md:border-t-0 md:border-l border-black/[0.06] bg-[#fafafa] p-4 md:p-3 flex flex-col">
                   <div className="flex items-center gap-2 mb-3">
-                    <LayoutPanelLeft size={10} className="text-black/30" />
-                    <span className="text-[8px] md:text-[9px] font-semibold uppercase tracking-wider text-black/30">Logic Map</span>
+                    <div className="w-5 h-5 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center">
+                      <span className="text-[8px] text-white font-bold">AI</span>
+                    </div>
+                    <span className="text-[9px] font-semibold text-black/50">Focus Assistant</span>
                   </div>
-                  <div className="bg-white rounded-lg border border-black/[0.04] p-3 mb-3">
-                    <svg viewBox="0 0 200 120" className="w-full h-auto max-h-24 md:max-h-none">
-                      <defs>
-                        <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
-                          <polygon points="0 0, 10 3.5, 0 7" fill="#ccc" />
-                        </marker>
-                      </defs>
-                      <rect x="60" y="5" width="80" height="24" rx="4" fill="#dbeafe" stroke="#93c5fd" strokeWidth="1" />
-                      <text x="100" y="20" textAnchor="middle" fontSize="7" fill="#1d4ed8">Direct Sales</text>
-                      <rect x="20" y="45" width="70" height="24" rx="4" fill="#fef3c7" stroke="#fcd34d" strokeWidth="1" />
-                      <text x="55" y="60" textAnchor="middle" fontSize="7" fill="#b45309">Capacity</text>
-                      <rect x="110" y="45" width="70" height="24" rx="4" fill="#fee2e2" stroke="#fca5a5" strokeWidth="1" />
-                      <text x="145" y="60" textAnchor="middle" fontSize="7" fill="#dc2626">Brand Risk</text>
-                      <rect x="60" y="85" width="80" height="24" rx="4" fill="#f3e8ff" stroke="#c4b5fd" strokeWidth="1" />
-                      <text x="100" y="100" textAnchor="middle" fontSize="7" fill="#7c3aed">Decision</text>
-                      <line x1="100" y1="29" x2="55" y2="45" stroke="#ccc" strokeWidth="1" markerEnd="url(#arrowhead)" />
-                      <line x1="100" y1="29" x2="145" y2="45" stroke="#ccc" strokeWidth="1" markerEnd="url(#arrowhead)" />
-                      <line x1="55" y1="69" x2="100" y2="85" stroke="#ccc" strokeWidth="1" markerEnd="url(#arrowhead)" />
-                      <line x1="145" y1="69" x2="100" y2="85" stroke="#ccc" strokeWidth="1" markerEnd="url(#arrowhead)" />
-                    </svg>
+
+                  {/* AI Chat Messages */}
+                  <div className="flex-1 space-y-2 mb-3 overflow-hidden">
+                    <div className="p-2 rounded-lg bg-white border border-black/[0.04]">
+                      <p className="text-[10px] text-black/60 leading-relaxed">
+                        I noticed your claim about direct sales lacks supporting evidence. Want me to help you find data?
+                      </p>
+                    </div>
+                    <div className="p-2 rounded-lg bg-violet-50 border border-violet-100">
+                      <div className="text-[8px] font-semibold uppercase tracking-wider text-violet-600 mb-1">Suggestion</div>
+                      <p className="text-[10px] text-black/60 leading-relaxed">
+                        Add a comparison of sales capacity vs projected demand.
+                      </p>
+                    </div>
+                    <div className="p-2 rounded-lg bg-amber-50 border border-amber-100">
+                      <div className="text-[8px] font-semibold uppercase tracking-wider text-amber-600 mb-1">Gap Found</div>
+                      <p className="text-[10px] text-black/60 leading-relaxed">
+                        "Sales capacity" assumption is untested.
+                      </p>
+                    </div>
                   </div>
-                  <div className="p-2 rounded-lg bg-white border border-black/[0.04]">
-                    <div className="text-[8px] font-semibold uppercase tracking-wider text-black/30 mb-1">Core Insight</div>
-                    <p className="text-[10px] text-black/60 leading-relaxed">
-                      Validate capacity before committing.
-                    </p>
+
+                  {/* Quick Actions */}
+                  <div className="flex gap-1.5 mb-2">
+                    <button className="flex-1 py-1.5 rounded-lg bg-white border border-black/[0.06] text-[9px] text-black/50 hover:bg-black/[0.02] transition-colors">
+                      Find gaps
+                    </button>
+                    <button className="flex-1 py-1.5 rounded-lg bg-white border border-black/[0.06] text-[9px] text-black/50 hover:bg-black/[0.02] transition-colors">
+                      Strengthen
+                    </button>
                   </div>
-                 </div>
+
+                  {/* Chat Input */}
+                  <div className="flex items-center gap-2 p-2 rounded-lg bg-white border border-black/[0.06]">
+                    <input
+                      type="text"
+                      placeholder="Ask about your document..."
+                      className="flex-1 text-[10px] text-black/60 bg-transparent outline-none placeholder:text-black/30"
+                      readOnly
+                    />
+                    <div className="w-5 h-5 rounded bg-black flex items-center justify-center">
+                      <ChevronDown size={10} className="text-white rotate-[-90deg]" />
+                    </div>
+                  </div>
+                </div>
               </div>
            </div>
           </div>
@@ -208,7 +250,7 @@ function LandingPage() {
       {/* Social Proof */}
       <section className="py-16 px-6 bg-[#f5f3ef]">
         <div className="max-w-4xl mx-auto text-center">
-          <h2 
+          <h2
             className="text-2xl md:text-3xl text-black/80 tracking-tight"
             style={{ fontFamily: "Georgia, 'Times New Roman', serif", fontStyle: "italic" }}
           >
@@ -216,6 +258,47 @@ function LandingPage() {
               </h2>
            </div>
         </section>
+
+      {/* Quick Features Grid */}
+      <section className="py-16 px-6 bg-[#ebe7e0]">
+        <div className="max-w-5xl mx-auto">
+          <div className="text-center mb-10">
+            <h2 className="text-xl md:text-2xl font-semibold text-black tracking-tight mb-3">
+              Everything you need to think better
+            </h2>
+            <p className="text-black/50 text-sm max-w-lg mx-auto">
+              Like Google Docs, but built for structured thinking. AI understands your reasoning, not just your words.
+            </p>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {[
+              { icon: "FileText", title: "Rich Documents", desc: "Write naturally with formatting" },
+              { icon: "Target", title: "Semantic Blocks", desc: "Tag claims, assumptions, risks" },
+              { icon: "LayoutPanelLeft", title: "Logic Maps", desc: "Visualize argument structure" },
+              { icon: "Eye", title: "AI Assistant", desc: "Chat about your document" },
+              { icon: "Lightbulb", title: "Gap Detection", desc: "Find holes in your reasoning" },
+              { icon: "AlertTriangle", title: "Risk Analysis", desc: "Surface hidden assumptions" },
+              { icon: "ChevronDown", title: "Export Anywhere", desc: "PDF, share, or publish" },
+              { icon: "User", title: "Collaboration", desc: "Share with your team" },
+            ].map((feature, i) => (
+              <div key={i} className="p-4 rounded-xl bg-white/60 border border-black/[0.04] hover:bg-white transition-colors">
+                <div className="w-8 h-8 rounded-lg bg-black/5 flex items-center justify-center mb-3">
+                  {feature.icon === "FileText" && <FileText size={16} className="text-black/40" />}
+                  {feature.icon === "Target" && <Target size={16} className="text-black/40" />}
+                  {feature.icon === "LayoutPanelLeft" && <LayoutPanelLeft size={16} className="text-black/40" />}
+                  {feature.icon === "Eye" && <Eye size={16} className="text-black/40" />}
+                  {feature.icon === "Lightbulb" && <Lightbulb size={16} className="text-black/40" />}
+                  {feature.icon === "AlertTriangle" && <AlertTriangle size={16} className="text-black/40" />}
+                  {feature.icon === "ChevronDown" && <ChevronDown size={16} className="text-black/40" />}
+                  {feature.icon === "User" && <User size={16} className="text-black/40" />}
+                </div>
+                <h3 className="font-medium text-sm text-black/80 mb-1">{feature.title}</h3>
+                <p className="text-xs text-black/40">{feature.desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
 
       {/* Feature 1: Reasoning Blocks */}
       <section id="features" className="py-24 px-6 bg-[#f5f3ef]">
@@ -317,7 +400,116 @@ function LandingPage() {
                 </div>
       </section>
 
-      {/* Feature 3: AI Gaps */}
+      {/* Feature 3: Graph-Aware AI Actions */}
+      <section className="py-24 px-6 bg-[#f5f3ef]">
+        <div className="max-w-5xl mx-auto">
+          <div className="grid md:grid-cols-2 gap-12 items-center">
+            <div>
+              <h2 className="text-3xl md:text-4xl font-semibold text-black tracking-tight mb-6 leading-tight">
+                AI that understands your reasoning graph
+              </h2>
+              <p className="text-black/50 leading-relaxed mb-6">
+                Not generic editing. Select text and get graph-aware actions: "Paraphrase while preserving this claim" or "Find analogies connecting this node to earlier ideas."
+              </p>
+              <p className="text-black/40 text-sm mb-4">
+                Cmd+K opens actions that know your argument structure.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {["Paraphrase", "Find similes", "Extract claims", "Counterargument", "Decompose"].map((action, i) => (
+                  <span key={i} className="px-3 py-1.5 rounded-lg bg-violet-50 border border-violet-100 text-xs font-medium text-violet-600">{action}</span>
+                ))}
+              </div>
+            </div>
+            <div className="bg-white rounded-2xl border border-black/[0.06] p-6 shadow-lg">
+              {/* Cmd+K Command Palette Demo */}
+              <div className="mb-4 p-3 rounded-xl bg-[#fafafa] border border-black/[0.06]">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="flex items-center gap-1 px-2 py-0.5 rounded bg-black/5 text-[10px] font-mono text-black/40">
+                    <span>⌘</span><span>K</span>
+                  </div>
+                  <span className="text-[10px] text-black/30">Quick Actions</span>
+                </div>
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-2 p-2 rounded-lg bg-violet-50 border border-violet-100">
+                    <div className="w-5 h-5 rounded bg-violet-500 flex items-center justify-center">
+                      <Lightbulb size={10} className="text-white" />
+                    </div>
+                    <span className="text-xs text-black/70">Paraphrase preserving claims</span>
+                  </div>
+                  <div className="flex items-center gap-2 p-2 rounded-lg hover:bg-black/[0.02] transition-colors">
+                    <div className="w-5 h-5 rounded bg-black/10 flex items-center justify-center">
+                      <Target size={10} className="text-black/40" />
+                    </div>
+                    <span className="text-xs text-black/50">Extract as graph node</span>
+                  </div>
+                  <div className="flex items-center gap-2 p-2 rounded-lg hover:bg-black/[0.02] transition-colors">
+                    <div className="w-5 h-5 rounded bg-black/10 flex items-center justify-center">
+                      <AlertTriangle size={10} className="text-black/40" />
+                    </div>
+                    <span className="text-xs text-black/50">Generate counterargument</span>
+                  </div>
+                </div>
+              </div>
+              <div className="p-3 rounded-lg bg-amber-50 border border-amber-100">
+                <div className="text-[9px] font-bold uppercase tracking-wider text-amber-600 mb-1">Graph-Aware</div>
+                <p className="text-[11px] text-black/60">Actions understand node relationships and preserve your argument structure.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Feature 4: Bi-directional Editing */}
+      <section className="py-24 px-6 bg-[#ebe7e0]">
+        <div className="max-w-5xl mx-auto">
+          <div className="grid md:grid-cols-2 gap-12 items-center">
+            <div className="order-2 md:order-1 bg-white rounded-2xl border border-black/[0.06] p-6 shadow-lg">
+              <div className="flex gap-4 mb-4">
+                <div className="flex-1 p-3 rounded-lg bg-[#fafafa] border border-black/[0.04]">
+                  <div className="text-[9px] font-semibold uppercase tracking-wider text-black/30 mb-2">Document</div>
+                  <div className="text-xs text-black/60 leading-relaxed">
+                    We should pursue direct sales because it gives us better margins...
+                  </div>
+                  <div className="mt-2 text-[10px] text-emerald-600 flex items-center gap-1">
+                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                    Auto-synced
+                  </div>
+                </div>
+                <div className="flex items-center">
+                  <div className="flex flex-col items-center gap-1">
+                    <ChevronDown size={12} className="text-black/20 rotate-90" />
+                    <ChevronDown size={12} className="text-black/20 -rotate-90" />
+                  </div>
+                </div>
+                <div className="flex-1 p-3 rounded-lg bg-[#fafafa] border border-black/[0.04]">
+                  <div className="text-[9px] font-semibold uppercase tracking-wider text-black/30 mb-2">Graph</div>
+                  <div className="flex items-center gap-2">
+                    <div className="px-2 py-1 rounded bg-blue-100 text-[10px] text-blue-700">Direct Sales</div>
+                    <span className="text-black/20">→</span>
+                    <div className="px-2 py-1 rounded bg-emerald-100 text-[10px] text-emerald-700">Margins</div>
+                  </div>
+                </div>
+              </div>
+              <div className="p-3 rounded-lg border border-dashed border-black/10 bg-black/[0.01]">
+                <p className="text-[11px] text-black/50 text-center">Edit either side. Changes sync automatically.</p>
+              </div>
+            </div>
+            <div className="order-1 md:order-2">
+              <h2 className="text-3xl md:text-4xl font-semibold text-black tracking-tight mb-6 leading-tight">
+                Bi-directional: text and graph stay in sync
+              </h2>
+              <p className="text-black/50 leading-relaxed mb-6">
+                Edit your document, the graph updates. Reorganize nodes in the graph, trigger a rewrite. Your structure and prose work together, not against each other.
+              </p>
+              <p className="text-black/40 text-sm">
+                Merge nodes, reorder arguments, and watch your document restructure.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Feature 5: AI Gap Detection */}
       <section className="py-24 px-6 bg-[#f5f3ef]">
         <div className="max-w-5xl mx-auto">
           <div className="grid md:grid-cols-2 gap-12 items-center">
@@ -346,8 +538,8 @@ function LandingPage() {
                 <p className="text-sm text-black/70">Consider pilot program with 2-3 enterprise customers before full commit.</p>
               </div>
             </div>
-                        </div>
-                      </div>
+          </div>
+        </div>
       </section>
 
       {/* Who it's for */}
@@ -385,7 +577,7 @@ function LandingPage() {
             Try Eliee now.
           </h2>
           <a 
-            href="/auth"
+            href="/get-started"
             className="inline-flex items-center gap-2 px-8 py-4 rounded-xl bg-black text-white font-medium hover:bg-black/80 transition-all"
           >
             Start a new document

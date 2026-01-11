@@ -4,7 +4,7 @@ import React, { useMemo, useState, useCallback, useEffect, useRef } from "react"
 import { motion, AnimatePresence } from "framer-motion";
 import { MermaidDiagram } from "@/components/MermaidDiagram";
 import { cn } from "@/lib/utils";
-import { getUserUsage, updateUserUsage } from "@/lib/db";
+import { getUserUsage, updateUserUsage, DocumentType } from "@/lib/db";
 import { 
   X, 
   FileText, 
@@ -37,7 +37,8 @@ import {
   Quote,
   Maximize2,
   Minimize2,
-  CornerDownLeft
+  CornerDownLeft,
+  MoreVertical
 } from "lucide-react";
 import { useSession, signOut } from "@/lib/auth-client";
 import { useRouter } from "next/navigation";
@@ -65,6 +66,11 @@ interface AIResult {
   connections: { from: string; to: string }[];
   gaps: string[];
   suggestions: string[];
+  thoughts?: {
+    gaps?: string[];
+    suggestions?: string[];
+    nodes?: Record<string, string>;
+  };
 }
 
 // Block type metadata
@@ -92,14 +98,21 @@ export default function AppPage() {
   // Document state
   const [documents, setDocuments] = useState<Document[]>([]);
   const [currentDocId, setCurrentDocId] = useState<string | null>(null);
+  const [documentType, setDocumentType] = useState<"visualization" | "ai_native" | null>(null);
+  const [canvasMode, setCanvasMode] = useState(false);
   const [blocks, setBlocks] = useState<DocBlock[]>([
     { id: "1", type: "text", content: "" }
   ]);
   const [docTitle, setDocTitle] = useState("Untitled");
+  // Undo/Redo history
+  const [history, setHistory] = useState<DocBlock[][]>([]);
+  const [historyIndex, setHistoryIndex] = useState(-1);
   const [isLoadingDocs, setIsLoadingDocs] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [showDocumentTypeModal, setShowDocumentTypeModal] = useState(false);
+  const [showHeaderMenu, setShowHeaderMenu] = useState(false);
 
   // UI state
   const [showVisualView, setShowVisualView] = useState(false);
@@ -114,6 +127,13 @@ export default function AppPage() {
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [showProModal, setShowProModal] = useState(false);
+  const [showUpgradeSuccess, setShowUpgradeSuccess] = useState(false);
+  const [showLimitReachedModal, setShowLimitReachedModal] = useState(false);
+  const [limitReachedAction, setLimitReachedAction] = useState<string | null>(null);
+  const [showDocLimitModal, setShowDocLimitModal] = useState(false);
+
+  // Free tier limits
+  const FREE_DOCUMENT_LIMIT = 3;
 
   // Focus Mode (Cursor-style AI assistant)
   const [showFocusMode, setShowFocusMode] = useState(false);
@@ -142,10 +162,16 @@ export default function AppPage() {
     chat: 0,
   });
   const [isPro, setIsPro] = useState(false);
+  const [premiumPromptsUsed, setPremiumPromptsUsed] = useState(0);
+  const [premiumPromptsLimit, setPremiumPromptsLimit] = useState(150);
+  const [showMobileWarning, setShowMobileWarning] = useState(false);
 
   const FREE_LIMITS: Record<string, number> = {
     fact_check: 3,
-    synonyms: 1,
+    paraphrase_preserve: 2,
+    find_similes: 2,
+    decompose_claims: 2,
+    counterargument: 2,
     expand: 1,
     simplify: 1,
     explain: 1,
@@ -153,17 +179,25 @@ export default function AppPage() {
     chat: 3,
   };
 
-  // Load usage from Supabase
+  // Load usage from Supabase (reload on session change and on mount)
   useEffect(() => {
     const loadUsage = async () => {
       if (session?.user?.id) {
         try {
           const usageData = await getUserUsage(session.user.id);
-          if (usageData?.focus_usage) {
-            setFocusUsage(usageData.focus_usage);
-          }
-          if (usageData?.is_pro !== undefined) {
-            setIsPro(usageData.is_pro);
+          if (usageData) {
+            if (usageData.focus_usage) {
+              setFocusUsage(usageData.focus_usage);
+            }
+            if (usageData.is_pro !== undefined) {
+              setIsPro(usageData.is_pro);
+            }
+            if (usageData.premium_prompts_used !== undefined) {
+              setPremiumPromptsUsed(usageData.premium_prompts_used);
+            }
+            if (usageData.premium_prompts_limit !== undefined) {
+              setPremiumPromptsLimit(usageData.premium_prompts_limit);
+            }
           }
         } catch (error) {
           console.error("Failed to load usage:", error);
@@ -171,6 +205,15 @@ export default function AppPage() {
       }
     };
     loadUsage();
+    
+    // Also reload when window regains focus (in case user switched tabs)
+    const handleFocus = () => {
+      if (session?.user?.id) {
+        loadUsage();
+      }
+    };
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
   }, [session]);
 
   // Check if first time user
@@ -193,6 +236,8 @@ export default function AppPage() {
           const usageData = await getUserUsage(session.user.id);
           if (usageData?.is_pro) {
             setIsPro(true);
+            // Show congratulations modal
+            setShowUpgradeSuccess(true);
           }
           // Remove query param
           window.history.replaceState({}, "", "/app");
@@ -207,6 +252,7 @@ export default function AppPage() {
       localStorage.setItem(`eliee_onboarding_${session.user.id}`, "true");
     }
     setShowOnboarding(false);
+    // User is already in the app, so no need to redirect
   };
 
   // Reference to the scroll container
@@ -238,29 +284,39 @@ export default function AppPage() {
           if (docs.length > 0) {
             setDocuments(docs);
             // Load the most recent document
-            setCurrentDocId(docs[0].id);
-            setDocTitle(docs[0].title);
-            const loadedBlocks = (docs[0].blocks || [{ id: "1", type: "text", content: "" }]).map(b => ({
+            const firstDoc = docs[0];
+            const docType = firstDoc.document_type || "visualization";
+            setCurrentDocId(firstDoc.id);
+            setDocTitle(firstDoc.title);
+            setDocumentType(docType);
+            const loadedBlocks = (firstDoc.blocks || [{ id: "1", type: "text", content: "" }]).map(b => ({
               ...b,
               content: b.content || ""
             }));
             setBlocks(loadedBlocks);
-          } else {
-            // No documents - create one automatically
-            try {
-              const newDoc = await createDocument(userId, "Untitled");
-              setDocuments([newDoc]);
-              setCurrentDocId(newDoc.id);
-              setDocTitle(newDoc.title);
-              const newBlocks = (newDoc.blocks || []).map(b => ({
-                ...b,
-                content: b.content || ""
-              }));
-              setBlocks(newBlocks);
-            } catch (err: any) {
-              console.error("Failed to create initial document:", err.message || err);
-              setError(err.message || "Failed to create initial document.");
+            // Initialize history with loaded blocks
+            const initialHistory = [JSON.parse(JSON.stringify(loadedBlocks))];
+            setHistory(initialHistory);
+            setHistoryIndex(0);
+            
+            // Restore visualization result if it exists
+            if (firstDoc.visualization_result) {
+              setAIResult(firstDoc.visualization_result);
+              setShowVisualView(true);
+            } else {
+              setShowVisualView(false);
+              setAIResult(null);
             }
+            
+            // Auto-open Focus Mode for AI Native documents
+            if (docType === "ai_native") {
+              setShowFocusMode(true);
+            } else {
+              setShowFocusMode(false);
+            }
+          } else {
+            // No documents - show type selection modal
+            setShowDocumentTypeModal(true);
           }
         })
         .catch((err) => {
@@ -270,6 +326,19 @@ export default function AppPage() {
         .finally(() => setIsLoadingDocs(false));
     }
   }, [session, sessionLoading]);
+
+  // Auto-resize all textareas when blocks change (fixes disappearing text)
+  useEffect(() => {
+    // Use requestAnimationFrame to ensure DOM is updated
+    requestAnimationFrame(() => {
+      const textareas = document.querySelectorAll('textarea');
+      textareas.forEach((textarea) => {
+        if (textarea instanceof HTMLTextAreaElement) {
+          autoResize(textarea);
+        }
+      });
+    });
+  }, [blocks, autoResize]);
 
   // Auto-generate title from first block if still "Untitled"
   useEffect(() => {
@@ -299,6 +368,7 @@ export default function AppPage() {
         await saveDocument(currentDocId, session.user.id, {
           title: docTitle,
           blocks: blocks,
+          document_type: documentType || "visualization",
         });
         setLastSaved(new Date());
         // Update local documents list
@@ -324,20 +394,48 @@ export default function AppPage() {
   }, [blocks, docTitle, currentDocId, session, sessionLoading]);
 
   // Create new document
-  const handleNewDocument = async () => {
+  const handleNewDocument = () => {
+    // Check document limit for free users
+    if (!isPro && documents.length >= FREE_DOCUMENT_LIMIT) {
+      setShowDocLimitModal(true);
+      return;
+    }
+    // Show document type selection modal
+    setShowDocumentTypeModal(true);
+  };
+
+  const handleCreateDocumentWithType = async (type: "visualization" | "ai_native") => {
     if (!session?.user?.id) return;
+
     try {
-      const newDoc = await createDocument(session.user.id, "Untitled");
+      const newDoc = await createDocument(session.user.id, "Untitled", type);
       setDocuments((prev) => [newDoc, ...prev]);
       setCurrentDocId(newDoc.id);
       setDocTitle(newDoc.title);
+      setDocumentType(newDoc.document_type || type);
       const createdBlocks = (newDoc.blocks || []).map(b => ({
         ...b,
         content: b.content || ""
       }));
       setBlocks(createdBlocks);
+      // Initialize history with created blocks
+      const initialHistory = [JSON.parse(JSON.stringify(createdBlocks))];
+      setHistory(initialHistory);
+      setHistoryIndex(0);
       setShowVisualView(false);
       setAIResult(null);
+      setShowDocumentTypeModal(false);
+      // Auto-open Focus Mode for AI Native documents
+      if (type === "ai_native") {
+        setShowFocusMode(true);
+      } else {
+        setShowFocusMode(false);
+        // Show visualization intro for new visualization documents
+        const hasSeenVisualizeIntro = localStorage.getItem(`eliee_visualize_intro_${session.user.id}`);
+        if (!hasSeenVisualizeIntro) {
+          setShowVisualizeIntro(true);
+        }
+      }
     } catch (err) {
       console.error("Failed to create document:", err);
       setError("Failed to create document");
@@ -348,13 +446,87 @@ export default function AppPage() {
   const handleSelectDocument = (doc: Document) => {
     setCurrentDocId(doc.id);
     setDocTitle(doc.title);
+    const docType = doc.document_type || "visualization";
+    setDocumentType(docType);
     const selectedBlocks = (doc.blocks || [{ id: "1", type: "text", content: "" }]).map(b => ({
       ...b,
       content: b.content || ""
     }));
-    setBlocks(selectedBlocks);
-    setShowVisualView(false);
-    setAIResult(null);
+      setBlocks(selectedBlocks);
+      // Initialize history with selected blocks
+      const initialHistory = [JSON.parse(JSON.stringify(selectedBlocks))];
+      setHistory(initialHistory);
+      setHistoryIndex(0);
+      
+      // Restore visualization result if it exists
+      if (doc.visualization_result) {
+        setAIResult(doc.visualization_result);
+        setShowVisualView(true);
+      } else {
+        setShowVisualView(false);
+        setAIResult(null);
+      }
+      
+      // Auto-open Focus Mode for AI Native documents
+      if (docType === "ai_native") {
+        setShowFocusMode(true);
+      } else {
+        setShowFocusMode(false);
+      }
+    };
+
+  // Switch document type
+  const handleSwitchDocumentType = async () => {
+    if (!session?.user?.id || !currentDocId) return;
+
+    const newType: DocumentType = documentType === "visualization" ? "ai_native" : "visualization";
+
+    try {
+      // When switching to AI Native, convert all blocks to text type (keeping content)
+      let newBlocks = blocks;
+      if (newType === "ai_native") {
+        newBlocks = blocks.map(block => ({
+          ...block,
+          type: "text" as const  // Convert all blocks to text
+        }));
+        setBlocks(newBlocks);
+      }
+
+      await saveDocument(currentDocId, session.user.id, {
+        document_type: newType,
+        blocks: newBlocks
+      });
+
+      setDocumentType(newType);
+
+      // Update local documents list
+      setDocuments((prev) =>
+        prev.map((d) =>
+          d.id === currentDocId ? { ...d, document_type: newType, blocks: newBlocks } : d
+        )
+      );
+
+      // When switching to AI Native, auto-open Focus Mode
+      // Keep aiResult so AI can reference the visualization data
+      if (newType === "ai_native") {
+        setShowFocusMode(true);
+        setShowVisualView(false);
+        // Add initial context message about the visualization
+        if (aiResult) {
+          setFocusChat([{
+            role: "assistant",
+            content: `I've analyzed your document and found ${aiResult.nodes?.length || 0} key concepts. The core premise is: "${aiResult.essence || 'No essence extracted'}". I can help you work with the logical structure - try asking me to extract claims, reorganize your argument, or explore gaps in your reasoning.`
+          }]);
+        }
+      } else {
+        setShowFocusMode(false);
+        setShowVisualView(false);
+      }
+    } catch (err) {
+      console.error("Failed to switch document type:", err);
+      setError("Failed to switch document type");
+      setTimeout(() => setError(null), 3000);
+    }
   };
 
   // Delete a document
@@ -384,6 +556,23 @@ export default function AppPage() {
     }, 0);
   }, [blocks]);
 
+  // Save to history when blocks change (debounced)
+  const saveToHistory = useCallback((newBlocks: DocBlock[]) => {
+    setHistory(prev => {
+      // Remove any history after current index (when undoing then making new changes)
+      const newHistory = prev.slice(0, historyIndex + 1);
+      // Add new state
+      newHistory.push(JSON.parse(JSON.stringify(newBlocks))); // Deep clone
+      // Limit history to 50 states
+      if (newHistory.length > 50) {
+        newHistory.shift();
+        return newHistory;
+      }
+      return newHistory;
+    });
+    setHistoryIndex(prev => Math.min(prev + 1, 49));
+  }, [historyIndex]);
+
   const addBlock = useCallback((type: BlockType) => {
     const newBlock: DocBlock = {
       id: Math.random().toString(36).substr(2, 9),
@@ -393,10 +582,11 @@ export default function AppPage() {
     setBlocks(prev => {
       const updated = [...prev];
       updated.splice(insertIndex + 1, 0, newBlock);
+      saveToHistory(updated);
       return updated;
     });
     setShowCommandMenu(false);
-  }, [insertIndex]);
+  }, [insertIndex, saveToHistory]);
 
   const updateBlock = useCallback((id: string, content: string) => {
     setBlocks(prev => {
@@ -407,17 +597,23 @@ export default function AppPage() {
         }
         return b;
       });
+      // Save to history after a short delay (debounce)
+      setTimeout(() => saveToHistory(updated), 500);
       return updated;
     });
-  }, []);
+  }, [saveToHistory]);
 
   const removeBlock = useCallback((id: string) => {
-    setBlocks(prev => prev.length > 1 ? prev.filter(b => b.id !== id) : prev);
-  }, []);
+    setBlocks(prev => {
+      const updated = prev.length > 1 ? prev.filter(b => b.id !== id) : prev;
+      saveToHistory(updated);
+      return updated;
+    });
+  }, [saveToHistory]);
 
   const handleContextMenu = useCallback((e: React.MouseEvent, index: number) => {
-    // Only show context menu in visualize mode (when focus mode is off)
-    if (showFocusMode) return;
+    // Only show context menu for visualization documents and when focus mode is off
+    if (showFocusMode || documentType !== "visualization") return;
 
     e.preventDefault();
     e.stopPropagation();
@@ -427,11 +623,11 @@ export default function AppPage() {
     // Insert AFTER this block (at index + 1)
     setInsertIndex(index);
     setShowCommandMenu(true);
-  }, [showFocusMode]);
+  }, [showFocusMode, documentType]);
 
   const handleDocContextMenu = useCallback((e: React.MouseEvent) => {
-    // Only show context menu in visualize mode (when focus mode is off)
-    if (showFocusMode) return;
+    // Only show context menu for visualization documents and when focus mode is off
+    if (showFocusMode || documentType !== "visualization") return;
 
     e.preventDefault();
     const maxX = window.innerWidth - 280;
@@ -440,7 +636,7 @@ export default function AppPage() {
     // Insert at the end
     setInsertIndex(blocks.length - 1);
     setShowCommandMenu(true);
-  }, [blocks.length, showFocusMode]);
+  }, [blocks.length, showFocusMode, documentType]);
 
   const handleDragStart = (id: string) => setDraggedId(id);
   const handleDragOver = (e: React.DragEvent, targetId: string) => {
@@ -456,6 +652,9 @@ export default function AppPage() {
   };
   const handleDragEnd = () => setDraggedId(null);
 
+  // Check if mobile device
+  const isMobile = typeof window !== "undefined" && (window.innerWidth < 768 || /iPhone|iPad|iPod|Android/i.test(navigator.userAgent));
+
   const handleVisualize = async () => {
     const allText = blocks.map(b => b.content).join("\n\n");
     if (allText.trim().length < 20) {
@@ -463,6 +662,14 @@ export default function AppPage() {
       setTimeout(() => setError(null), 3000);
       return;
     }
+
+    // Check mobile and show warning
+    if (isMobile) {
+      setShowMobileWarning(true);
+      return;
+    }
+
+    // Visualization is FREE for everyone - no limits!
     setIsAnalyzing(true);
     setError(null);
     try {
@@ -470,7 +677,7 @@ export default function AppPage() {
       const res = await fetch("/api/visualize", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           text: allText,
           blocks: blocks.map(b => ({ type: b.type, content: b.content }))
         }),
@@ -480,6 +687,18 @@ export default function AppPage() {
       if (data.result) {
         setAIResult(data.result);
         setShowVisualView(true);
+
+        // Save visualization result to document
+        if (currentDocId && session?.user?.id) {
+          try {
+            const { saveDocument } = await import("@/lib/db");
+            await saveDocument(currentDocId, session.user.id, {
+              visualization_result: data.result
+            });
+          } catch (err) {
+            console.error("Failed to save visualization result:", err);
+          }
+        }
       }
     } catch (e: any) {
       setError("Visualization temporarily unavailable. Try again.");
@@ -541,19 +760,49 @@ export default function AppPage() {
   // --- Focus Mode Functions ---
 
 
-  // Keyboard shortcut: Cmd/Ctrl + K to toggle Focus Mode
+  // Keyboard shortcuts: Cmd/Ctrl + K to toggle Focus Mode, Cmd/Ctrl + Z for undo/redo
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Cmd/Ctrl + K: Toggle Focus Mode
       if ((e.metaKey || e.ctrlKey) && e.key === "k") {
         e.preventDefault();
         if (!showVisualView) {
           handleToggleFocusMode();
         }
+        return;
+      }
+      
+      // Cmd/Ctrl + Z: Undo
+      if ((e.metaKey || e.ctrlKey) && e.key === "z" && !e.shiftKey) {
+        e.preventDefault();
+        if (history.length > 0 && historyIndex > 0) {
+          const newIndex = historyIndex - 1;
+          const historyState = history[newIndex];
+          if (historyState) {
+            setHistoryIndex(newIndex);
+            setBlocks(JSON.parse(JSON.stringify(historyState))); // Deep clone
+          }
+        }
+        return;
+      }
+      
+      // Cmd/Ctrl + Shift + Z: Redo
+      if ((e.metaKey || e.ctrlKey) && e.key === "z" && e.shiftKey) {
+        e.preventDefault();
+        if (history.length > 0 && historyIndex < history.length - 1) {
+          const newIndex = historyIndex + 1;
+          const historyState = history[newIndex];
+          if (historyState) {
+            setHistoryIndex(newIndex);
+            setBlocks(JSON.parse(JSON.stringify(historyState))); // Deep clone
+          }
+        }
+        return;
       }
     };
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [showVisualView]);
+  }, [showVisualView, history, historyIndex]);
 
   // Selection tracking for Focus mode (for replace functionality)
   useEffect(() => {
@@ -677,7 +926,8 @@ export default function AppPage() {
       localStorage.setItem(`eliee_visualize_intro_${session.user.id}`, "true");
     }
     setShowVisualizeIntro(false);
-    // Don't auto-visualize - user must click the button
+    // Actually perform the visualization
+    await handleVisualize();
   };
 
   // Check if action is allowed (free tier limits) - memoized for performance
@@ -705,7 +955,8 @@ export default function AppPage() {
 
     // Check free tier limit
     if (!isActionAllowed(action)) {
-      setShowProModal(true);
+      setLimitReachedAction(action);
+      setShowLimitReachedModal(true);
       return;
     }
 
@@ -719,6 +970,11 @@ export default function AppPage() {
       if (session?.user?.id) {
         try {
           await updateUserUsage(session.user.id, newUsage);
+          // Reload usage to ensure it's saved
+          const updatedUsage = await getUserUsage(session.user.id);
+          if (updatedUsage?.focus_usage) {
+            setFocusUsage(updatedUsage.focus_usage);
+          }
         } catch (error) {
           console.error("Failed to save usage:", error);
         }
@@ -730,7 +986,15 @@ export default function AppPage() {
     setFocusChat(prev => [...prev, { role: "user", content: actionLabel }]);
 
     try {
-      const context = blocks.map(b => b.content).join("\n\n").substring(0, 1000);
+      // Pass all document text as context (up to 4000 chars for better context)
+      const context = blocks.map(b => b.content).join("\n\n").substring(0, 4000);
+
+      // Include graph structure if available (for graph-aware actions)
+      const graphStructure = aiResult?.nodes ? {
+        nodes: aiResult.nodes,
+        edges: aiResult.connections || []
+      } : undefined;
+
       const res = await fetch("/api/assist", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -738,11 +1002,18 @@ export default function AppPage() {
           action,
           text: textToProcess,
           context,
-          model: focusModel
+          graphStructure,
+          model: focusModel,
+          userId: session?.user?.id
         }),
       });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
+      
+      // Update premium prompt tracking if Pro user
+      if (isPro && data.premiumPromptsRemaining !== undefined) {
+        setPremiumPromptsUsed(premiumPromptsLimit - data.premiumPromptsRemaining);
+      }
 
       // Format AI response for better readability
       let formattedResult = data.result || "";
@@ -764,14 +1035,34 @@ export default function AppPage() {
         }).filter((l: string) => l.length > 0).join('\n');
       }
 
-      setFocusChat(prev => [...prev, { role: "assistant", content: formattedResult }]);
-
-      // Scroll chat to bottom with RAF for smoother performance
-      requestAnimationFrame(() => {
-        focusChatRef.current?.scrollTo({ top: focusChatRef.current.scrollHeight, behavior: "smooth" });
+      setFocusChat(prev => {
+        const updated: { role: "user" | "assistant"; content: string }[] = [...prev, { role: "assistant" as const, content: formattedResult }];
+        // Add upgrade prompt after assistant response (only for free users)
+        if (!isPro) {
+          updated.push({
+            role: "assistant" as const,
+            content: "💡 For more high-quality responses, upgrade to Pro and use the latest models from Claude, ChatGPT, and more. Get 150 premium prompts/month plus unlimited free model access."
+          });
+        }
+        // Scroll chat to bottom after state update
+        setTimeout(() => {
+          if (focusChatRef.current) {
+            focusChatRef.current.scrollTo({ top: focusChatRef.current.scrollHeight, behavior: "smooth" });
+          }
+        }, 100);
+        return updated;
       });
     } catch (err: any) {
-      setFocusChat(prev => [...prev, { role: "assistant", content: `Error: ${err.message}` }]);
+      setFocusChat(prev => {
+        const updated: { role: "user" | "assistant"; content: string }[] = [...prev, { role: "assistant" as const, content: `Error: ${err.message}` }];
+        // Scroll to error message
+        setTimeout(() => {
+          if (focusChatRef.current) {
+            focusChatRef.current.scrollTo({ top: focusChatRef.current.scrollHeight, behavior: "smooth" });
+          }
+        }, 100);
+        return updated;
+      });
     } finally {
       setIsFocusLoading(false);
     }
@@ -787,7 +1078,10 @@ export default function AppPage() {
   // Memoize focus action buttons to prevent re-renders
   const focusActionButtons = useMemo(() => [
     { action: "fact_check", label: "Verify" },
-    { action: "synonyms", label: "Rephrase" },
+    { action: "paraphrase_preserve", label: "Paraphrase" },
+    { action: "find_similes", label: "Find Similes" },
+    { action: "decompose_claims", label: "Extract Claims" },
+    { action: "counterargument", label: "Counter" },
     { action: "expand", label: "Expand" },
     { action: "simplify", label: "Simplify" },
     { action: "improve", label: "Polish" },
@@ -846,6 +1140,65 @@ export default function AppPage() {
 
   return (
     <div className="flex h-screen bg-white text-black font-sans overflow-hidden">
+      {/* Document Type Selection Modal */}
+      {/* New Document Modal - Cursor-style minimal */}
+      <AnimatePresence>
+        {showDocumentTypeModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
+            onClick={() => setShowDocumentTypeModal(false)}
+          >
+            <motion.div
+              initial={{ opacity: 0, y: 4 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 4 }}
+              transition={{ duration: 0.15 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-[#1e1e1e] rounded-lg border border-white/10 shadow-2xl w-[320px] overflow-hidden"
+            >
+              <div className="px-4 py-3 border-b border-white/[0.06]">
+                <p className="text-[13px] font-medium text-white/90">New document</p>
+              </div>
+
+              <div className="p-1">
+                <button
+                  onClick={() => handleCreateDocumentWithType("visualization")}
+                  className="w-full px-3 py-2.5 text-left rounded hover:bg-white/[0.06] transition-colors flex items-center gap-3"
+                >
+                  <Eye size={15} className="text-white/50" />
+                  <div>
+                    <p className="text-[13px] text-white/90">Visualization</p>
+                    <p className="text-[11px] text-white/40">Map thoughts, see logic visually</p>
+                  </div>
+                </button>
+
+                <button
+                  onClick={() => handleCreateDocumentWithType("ai_native")}
+                  className="w-full px-3 py-2.5 text-left rounded hover:bg-white/[0.06] transition-colors flex items-center gap-3"
+                >
+                  <Wand2 size={15} className="text-white/50" />
+                  <div>
+                    <p className="text-[13px] text-white/90">AI Native</p>
+                    <p className="text-[11px] text-white/40">Write with AI assistance</p>
+                  </div>
+                </button>
+              </div>
+
+              <div className="px-4 py-2.5 border-t border-white/[0.06] flex justify-end">
+                <button
+                  onClick={() => setShowDocumentTypeModal(false)}
+                  className="px-3 py-1.5 text-[12px] text-white/50 hover:text-white/70 transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
       {/* Sidebar */}
       <motion.aside 
         initial={false}
@@ -857,8 +1210,13 @@ export default function AppPage() {
           <div className="flex items-center gap-3">
             <img src="/eliee_logo.jpg" alt="Logo" className="w-6 h-6 rounded-lg" />
             <span className="font-semibold tracking-tight text-black text-sm">Eliee</span>
+            {isPro && (
+              <span className="px-1.5 py-0.5 text-[9px] font-bold bg-gradient-to-r from-violet-500 to-purple-500 text-white rounded-md uppercase tracking-wide">
+                Pro
+              </span>
+            )}
           </div>
-          <button 
+          <button
             onClick={handleNewDocument}
             className="p-1.5 hover:bg-black/[0.05] rounded-lg transition-colors"
             title="New document"
@@ -870,7 +1228,12 @@ export default function AppPage() {
         <div className="flex-1 overflow-y-auto">
           {/* Documents List */}
           <div className="p-3 space-y-1">
-            <p className="text-[9px] font-semibold uppercase tracking-wider text-black/25 px-2 mb-2">Documents</p>
+            <div className="flex items-center justify-between px-2 mb-2">
+              <p className="text-[9px] font-semibold uppercase tracking-wider text-black/25">Documents</p>
+              {!isPro && (
+                <span className="text-[9px] text-black/30">{documents.length}/{FREE_DOCUMENT_LIMIT}</span>
+              )}
+            </div>
             {documents.map((doc) => (
               <div 
                 key={doc.id}
@@ -922,19 +1285,18 @@ export default function AppPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-2">
+            {/* Show features based on document type */}
+            {documentType === "visualization" ? (
               <button 
                 onClick={handleToggleVisualize}
-                disabled={isAnalyzing || showFocusMode || (!hasContent && !showVisualView)}
+                disabled={isAnalyzing || (!hasContent && !showVisualView)}
                 className={cn(
-                  "flex items-center justify-center gap-2 px-3 py-3 rounded-xl text-xs font-medium transition-all relative",
-                  showFocusMode 
-                    ? "bg-black/[0.03] text-black/20 cursor-not-allowed"
-                    : (hasContent || showVisualView) && !isAnalyzing 
-                      ? showVisualView
-                        ? "bg-blue-500 text-white hover:bg-blue-600"
-                        : "bg-black text-white hover:bg-black/90"
-                      : "bg-black/[0.03] text-black/20 cursor-not-allowed"
+                  "w-full flex items-center justify-center gap-2 px-3 py-3 rounded-xl text-xs font-medium transition-all",
+                  (hasContent || showVisualView) && !isAnalyzing 
+                    ? showVisualView
+                      ? "bg-blue-500 text-white hover:bg-blue-600"
+                      : "bg-black text-white hover:bg-black/90"
+                    : "bg-black/[0.03] text-black/20 cursor-not-allowed"
                 )}
               >
                 {isAnalyzing ? (
@@ -943,77 +1305,50 @@ export default function AppPage() {
                   <Eye size={14} />
                 )}
                 <span>{showVisualView ? "Refresh" : "Visualize"}</span>
-                {showFocusMode && (
-                  <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-amber-400" title="Exit Focus Mode first" />
-                )}
               </button>
-              
+            ) : documentType === "ai_native" ? (
               <button 
                 onClick={handleToggleFocusMode}
-                disabled={showVisualView}
                 className={cn(
-                  "flex items-center justify-center gap-2 px-3 py-3 rounded-xl text-xs font-medium transition-all border",
-                  showVisualView
-                    ? "bg-black/[0.03] text-black/20 border-black/[0.04] cursor-not-allowed"
-                    : showFocusMode 
-                      ? "bg-blue-500 text-white border-blue-500" 
-                      : "bg-white text-black/60 border-black/[0.08] hover:border-black/20"
+                  "w-full flex items-center justify-center gap-2 px-3 py-3 rounded-xl text-xs font-medium transition-all border",
+                  showFocusMode 
+                    ? "bg-blue-500 text-white border-blue-500" 
+                    : "bg-white text-black/60 border-black/[0.08] hover:border-black/20"
                 )}
               >
                 <Wand2 size={14} />
                 <span>Focus</span>
               </button>
-            </div>
-            
-            {showFocusMode && (
-              <p className="text-[9px] text-amber-600/70 text-center">Exit Focus Mode to use Visualize</p>
-            )}
+            ) : null}
 
             {error && <div className="p-3 rounded-lg bg-rose-50 border border-rose-100 text-rose-600 text-xs">{error}</div>}
           </div>
         </div>
 
-        <div className="p-4 border-t border-black/[0.04] space-y-2">
-          {/* Upgrade to Pro */}
-          <button 
-            onClick={() => setShowProModal(true)}
-            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-white text-xs font-semibold hover:from-amber-600 hover:to-orange-600 transition-all shadow-sm"
-          >
-            <Crown size={14} /> Upgrade to Pro
-          </button>
-
-          <div className="relative">
-            <button onClick={() => setShowExportMenu(!showExportMenu)} className="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg border border-black/[0.06] text-xs font-medium text-black/50 hover:border-black/20 transition-all">
-              <Download size={14} /> Export
+        <div className="p-4 border-t border-black/[0.04]">
+          {isPro ? (
+            /* Pro user status */
+            <div className="flex items-center justify-between p-3 rounded-xl bg-gradient-to-r from-violet-50 to-purple-50 border border-violet-200/50">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-violet-500 to-purple-500 flex items-center justify-center">
+                  <Crown size={12} className="text-white" />
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-black/80">Pro Plan</p>
+                  <p className="text-[10px] text-black/40">{premiumPromptsLimit - premiumPromptsUsed} premium prompts left</p>
+                </div>
+              </div>
+              <Check size={14} className="text-emerald-500" />
+            </div>
+          ) : (
+            /* Upgrade to Pro button */
+            <button
+              onClick={() => setShowProModal(true)}
+              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-violet-500 to-purple-500 text-white text-xs font-semibold hover:from-violet-600 hover:to-purple-600 transition-all shadow-sm"
+            >
+              <Crown size={14} /> Upgrade to Pro
             </button>
-            <AnimatePresence>
-              {showExportMenu && (
-                <motion.div initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 5 }} className="absolute bottom-full left-0 right-0 mb-2 bg-white border border-black/10 rounded-lg shadow-xl overflow-hidden">
-                  <button onClick={handleDownloadPDF} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-black/70 hover:bg-black/[0.02]">
-                    <FileDown size={14} /> Download PDF
-                  </button>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-          
-          <button 
-            onClick={() => window.location.href = "/"} 
-            className="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-xs font-medium text-black/40 hover:text-black/70 hover:bg-black/[0.02] transition-all"
-          >
-            <Home size={14} /> Home
-          </button>
-
-          <button 
-            onClick={() => router.push("/settings")} 
-            className="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-xs font-medium text-black/40 hover:text-black/70 hover:bg-black/[0.02] transition-all"
-          >
-            <Settings size={14} /> Settings
-          </button>
-          
-          <button onClick={handleSignOut} className="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-xs font-medium text-black/40 hover:text-black/70 hover:bg-black/[0.02] transition-all">
-            <LogOut size={14} /> Sign out
-          </button>
+          )}
         </div>
       </motion.aside>
 
@@ -1041,11 +1376,170 @@ export default function AppPage() {
                 </>
               ) : null}
             </div>
+            {/* Upgrade prompt when usage is low */}
+            {!isPro && !showVisualView && Object.entries(FREE_LIMITS).some(([action]) => {
+              const remaining = getRemainingUses(action);
+              return remaining !== Infinity && remaining <= 1 && (focusUsage[action] || 0) > 0;
+            }) && (
+              <button
+                onClick={() => setShowProModal(true)}
+                className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-gradient-to-r from-violet-50 to-purple-50 border border-violet-200/50 text-[11px] font-medium text-violet-700 hover:from-violet-100 hover:to-purple-100 transition-all"
+              >
+                <Crown size={12} />
+                <span>Upgrade for more</span>
+              </button>
+            )}
             {showVisualView && (
               <button onClick={() => setShowVisualView(false)} className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium text-black/50 hover:text-black hover:bg-black/[0.03] transition-all">
                 <ArrowLeft size={14} /> Back to Doc
               </button>
             )}
+            {!showVisualView && documentType === "visualization" && (
+              <>
+                <button
+                  onClick={() => setCanvasMode(!canvasMode)}
+                  className={cn(
+                    "flex items-center gap-1.5 px-2.5 py-1 rounded text-[10px] font-medium transition-colors",
+                    canvasMode
+                      ? "bg-emerald-100 text-emerald-700 border border-emerald-200"
+                      : "text-black/40 hover:text-black/60 hover:bg-black/[0.02] border border-transparent"
+                  )}
+                  title={canvasMode ? "Switch to structured mode" : "Switch to canvas mode"}
+                >
+                  <Maximize2 size={12} />
+                  {canvasMode ? "Canvas" : "Structured"}
+                </button>
+                <button 
+                  onClick={handleToggleVisualize}
+                  disabled={isAnalyzing}
+                  className={cn(
+                    "flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all",
+                    isAnalyzing
+                      ? "text-black/30 cursor-not-allowed"
+                      : "text-black/50 hover:text-black hover:bg-black/[0.03]"
+                  )}
+                >
+                  {isAnalyzing ? (
+                    <>
+                      <div className="w-3 h-3 border-2 border-black/20 border-t-black/50 rounded-full animate-spin" />
+                      Analyzing...
+                    </>
+                  ) : (
+                    <>
+                      <Eye size={14} />
+                      Visualize
+                    </>
+                  )}
+                </button>
+              </>
+            )}
+            {/* Document type switcher */}
+            {!showVisualView && documentType && (
+              <button
+                onClick={handleSwitchDocumentType}
+                className="flex items-center gap-1.5 px-2 py-0.5 bg-black/[0.02] hover:bg-black/[0.04] rounded transition-colors cursor-pointer group"
+                title={`Switch to ${documentType === "visualization" ? "AI Native" : "Visualization"}`}
+              >
+                <span className="text-[10px] text-black/30 group-hover:text-black/50 transition-colors">
+                  {documentType === "visualization" ? "Visualization" : "AI Native"}
+                </span>
+                <svg className="w-3 h-3 text-black/20 group-hover:text-black/40 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                </svg>
+              </button>
+            )}
+            {/* Pro Badge */}
+            {isPro && (
+              <div className="flex items-center gap-1 px-2 py-0.5 bg-gradient-to-r from-amber-500/10 to-orange-500/10 rounded-full border border-amber-500/20">
+                <Crown size={10} className="text-amber-600" />
+                <span className="text-[10px] font-semibold text-amber-700">Pro</span>
+              </div>
+            )}
+            {/* Header Menu */}
+            <div className="relative">
+              <button 
+                onClick={() => setShowHeaderMenu(!showHeaderMenu)}
+                className="p-1.5 hover:bg-black/[0.03] rounded-lg transition-colors"
+                title="Menu"
+              >
+                <MoreVertical size={16} className="text-black/50" />
+              </button>
+              <AnimatePresence>
+                {showHeaderMenu && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    className="absolute right-0 top-full mt-2 w-48 bg-white border border-black/[0.06] rounded-xl shadow-xl overflow-hidden z-50"
+                  >
+                    <div className="relative">
+                      <button 
+                        onClick={() => {
+                          setShowExportMenu(!showExportMenu);
+                        }}
+                        className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-black/70 hover:bg-black/[0.02] transition-all"
+                      >
+                        <Download size={14} />
+                        Export
+                      </button>
+                      <AnimatePresence>
+                        {showExportMenu && (
+                          <motion.div
+                            initial={{ opacity: 0, y: -5 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -5 }}
+                            className="absolute left-full top-0 ml-2 bg-white border border-black/10 rounded-lg shadow-xl overflow-hidden z-50"
+                          >
+                            <button 
+                              onClick={() => {
+                                handleDownloadPDF();
+                                setShowExportMenu(false);
+                                setShowHeaderMenu(false);
+                              }}
+                              className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-black/70 hover:bg-black/[0.02] whitespace-nowrap"
+                            >
+                              <FileDown size={14} />
+                              Download PDF
+                            </button>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
+                    <button 
+                      onClick={() => {
+                        window.location.href = "/";
+                        setShowHeaderMenu(false);
+                      }}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-black/70 hover:bg-black/[0.02] transition-all"
+                    >
+                      <Home size={14} />
+                      Home
+                    </button>
+                    <button 
+                      onClick={() => {
+                        router.push("/settings");
+                        setShowHeaderMenu(false);
+                      }}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-black/70 hover:bg-black/[0.02] transition-all"
+                    >
+                      <Settings size={14} />
+                      Settings
+                    </button>
+                    <div className="h-px bg-black/[0.04]" />
+                    <button 
+                      onClick={() => {
+                        handleSignOut();
+                        setShowHeaderMenu(false);
+                      }}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-black/70 hover:bg-black/[0.02] transition-all"
+                    >
+                      <LogOut size={14} />
+                      Sign out
+                    </button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
           </div>
         </header>
 
@@ -1058,18 +1552,13 @@ export default function AppPage() {
               animate={{ opacity: 1 }} 
               exit={{ opacity: 0 }} 
               className="flex-1 overflow-auto" 
-              onClick={() => { setShowCommandMenu(false); setShowExportMenu(false); }}
+              onClick={() => { setShowCommandMenu(false); setShowExportMenu(false); setShowHeaderMenu(false); }}
               onContextMenu={(e) => !showFocusMode && handleDocContextMenu(e)}
             >
               <div className="max-w-2xl mx-auto py-12 px-6">
-                <div className="mb-8 space-y-2">
-                  <p className="text-[10px] font-medium uppercase tracking-wider text-black/20">Document</p>
-                  <p className="text-sm text-black/30">Write naturally. Right-click to add structured blocks (available in Visualize mode).</p>
-                </div>
-
                 <div className="space-y-2">
                   {blocks.map((block, index) => (
-                    <div key={block.id} onDragOver={(e) => handleDragOver(e, block.id)} className={cn("group relative rounded-lg transition-all", draggedId === block.id && "opacity-50", block.type !== "text" && "border-l-2", block.type !== "text" && blockMeta[block.type]?.borderColor)}>
+                    <div key={block.id} data-block-id={block.id} onDragOver={(e) => handleDragOver(e, block.id)} className={cn("group relative rounded-lg transition-all", draggedId === block.id && "opacity-50", block.type !== "text" && "border-l-2", block.type !== "text" && blockMeta[block.type]?.borderColor)}>
                       <div className="flex items-start gap-2 py-1.5">
                         <div className="w-5 flex-shrink-0 pt-2 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center gap-0.5">
                           <button onClick={() => removeBlock(block.id)} className="p-0.5 hover:bg-black/[0.03] rounded text-black/15 hover:text-black/40"><X size={10} /></button>
@@ -1083,32 +1572,74 @@ export default function AppPage() {
                           </div>
                         </div>
                         <div className={cn("flex-1 min-w-0 py-1.5 px-3 rounded-lg transition-colors", block.type !== "text" && blockMeta[block.type]?.bgColor)} onContextMenu={(e) => !showFocusMode && handleContextMenu(e, index)}>
-                          {block.type !== "text" && blockMeta[block.type] && (
-                            <div className={cn("inline-flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-wider mb-1", blockMeta[block.type].color)}>
-                              {blockMeta[block.type].icon}
-                              {blockMeta[block.type].label}
+                          <div className="flex items-start justify-between gap-2 mb-1">
+                            <div className="flex-1">
+                              {block.type !== "text" && blockMeta[block.type] && (
+                                <div className={cn("inline-flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-wider mb-1", blockMeta[block.type].color)}>
+                                  {blockMeta[block.type].icon}
+                                  {blockMeta[block.type].label}
+                                </div>
+                              )}
                             </div>
-                          )}
-                              <textarea
-                                value={block.content || ""}
-                                onChange={(e) => updateBlock(block.id, e.target.value)}
-                                onInput={(e) => autoResize(e.currentTarget)}
-                                onFocus={(e) => autoResize(e.currentTarget)}
-                                onBlur={(e) => {
-                                  // Ensure content is preserved on blur - sync state with DOM
-                                  const currentValue = e.target.value;
-                                  if (currentValue !== (block.content || "")) {
-                                    updateBlock(block.id, currentValue);
-                                  }
-                                }}
-                                placeholder={block.type === "text" ? "Start writing..." : `Enter ${block.type}...`}
-                                className={cn(
-                                  "w-full bg-transparent border-none focus:ring-0 p-0 resize-none leading-relaxed placeholder:text-black/15 focus:outline-none",
-                                  block.type === "text" ? "text-[15px] text-black/80" : "text-[14px] font-medium text-black/70"
-                                )}
-                                style={{ overflow: "hidden" }}
-                                rows={1}
-                              />
+                            {/* Action buttons for AI Native documents */}
+                            {documentType === "ai_native" && showFocusMode && block.content.trim() && (
+                              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 flex-wrap">
+                                {focusActionButtons.map((item) => {
+                                  const remaining = getRemainingUses(item.action);
+                                  const allowed = remaining > 0 || remaining === Infinity;
+                                  return (
+                                    <button
+                                      key={item.action}
+                                      onMouseDown={(e) => e.preventDefault()}
+                                      onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        // Select the block's text and trigger action
+                                        const textarea = e.currentTarget.closest('.group')?.querySelector('textarea') as HTMLTextAreaElement;
+                                        if (textarea && textarea.value.trim()) {
+                                          textarea.focus();
+                                          textarea.setSelectionRange(0, textarea.value.length);
+                                          setSelectedText(textarea.value);
+                                          setSelectedRange({ start: 0, end: textarea.value.length, textarea });
+                                          handleFocusAction(item.action, textarea.value);
+                                        }
+                                      }}
+                                      disabled={!allowed || isFocusLoading || !block.content.trim()}
+                                      className={cn(
+                                        "px-2 py-0.5 text-[10px] rounded transition-all",
+                                        !allowed || !block.content.trim()
+                                          ? "text-black/15 cursor-not-allowed"
+                                          : "text-black/50 hover:text-black/80 hover:bg-black/[0.04]"
+                                      )}
+                                      title={item.label}
+                                    >
+                                      {item.label}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                          <textarea
+                            value={block.content || ""}
+                            onChange={(e) => updateBlock(block.id, e.target.value)}
+                            onInput={(e) => autoResize(e.currentTarget)}
+                            onFocus={(e) => autoResize(e.currentTarget)}
+                            onBlur={(e) => {
+                              // Ensure content is preserved on blur - sync state with DOM
+                              const currentValue = e.target.value;
+                              if (currentValue !== (block.content || "")) {
+                                updateBlock(block.id, currentValue);
+                              }
+                            }}
+                            placeholder={block.type === "text" ? "Start writing..." : `Enter ${block.type}...`}
+                            className={cn(
+                              "w-full bg-transparent border-none focus:ring-0 p-0 resize-none leading-relaxed placeholder:text-black/15 focus:outline-none",
+                              block.type === "text" ? "text-[15px] text-black/80" : "text-[14px] font-medium text-black/70"
+                            )}
+                            style={{ overflow: "hidden" }}
+                            rows={1}
+                          />
                         </div>
                       </div>
                     </div>
@@ -1118,147 +1649,182 @@ export default function AppPage() {
               </div>
             </motion.div>
           ) : (
-            <motion.div 
-              key="visual" 
-              initial={{ opacity: 0 }} 
-              animate={{ opacity: 1 }} 
-              exit={{ opacity: 0 }} 
-              className="flex-1 flex flex-col bg-[#fafafa]"
+            <motion.div
+              key="visual"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="flex-1 flex flex-col bg-[#f5f3ef] overflow-y-auto"
             >
-              {/* Simple header bar */}
-              <div className="h-14 border-b border-black/[0.04] bg-white flex items-center justify-between px-6 flex-shrink-0">
+              {/* Sticky header bar */}
+              <div className="sticky top-0 z-20 h-16 border-b border-black/[0.06] bg-[#f5f3ef]/90 backdrop-blur-md flex items-center justify-between px-6 md:px-10 flex-shrink-0">
                 <div className="flex items-center gap-4">
-                  <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 rounded-full bg-black/20" />
-                    <h2 className="text-sm font-semibold text-black/80">{docTitle}</h2>
+                  <div className="flex items-center gap-3">
+                    <div className="w-2.5 h-2.5 rounded-full bg-black/30" />
+                    <h2 className="text-base font-semibold text-black/80">{docTitle}</h2>
                   </div>
-                  <div className="h-4 w-[1px] bg-black/[0.04]" />
-                  <span className="text-[11px] font-medium text-black/30 uppercase tracking-widest">
-                    Logic Architecture
-                  </span>
+                  <div className="hidden sm:flex items-center gap-3">
+                    <div className="h-5 w-[1px] bg-black/[0.08]" />
+                    <span className="text-xs font-medium text-black/40 uppercase tracking-wider">
+                      Logic Architecture
+                    </span>
+                  </div>
                 </div>
-                <div className="flex items-center gap-3">
-                  <span className="text-[11px] text-black/20 font-medium mr-2">
+                <div className="flex items-center gap-4">
+                  <span className="hidden sm:block text-xs text-black/30 font-medium">
                     {aiResult?.nodes?.length || 0} nodes mapped
                   </span>
-                  <button 
-                    onClick={handleConvertToDoc} 
-                    className="flex items-center gap-2 px-4 py-2 rounded-lg bg-black text-white text-[11px] font-bold uppercase tracking-wider hover:bg-black/90 transition-all shadow-sm"
+                  {!isPro && (
+                    <button
+                      onClick={() => setShowProModal(true)}
+                      className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-gradient-to-r from-amber-500/10 to-orange-500/10 border border-amber-500/20 text-[11px] font-medium text-amber-700 hover:from-amber-500/15 hover:to-orange-500/15 transition-all"
+                    >
+                      <Crown size={12} />
+                      <span>Upgrade to Pro</span>
+                    </button>
+                  )}
+                  <button
+                    onClick={handleConvertToDoc}
+                    className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-black text-white text-xs font-semibold hover:bg-black/80 transition-all shadow-sm"
                   >
-                    <RefreshCw size={12} strokeWidth={3} /> 
+                    <RefreshCw size={14} strokeWidth={2.5} />
                     Sync to Editor
                   </button>
                 </div>
               </div>
 
-              {/* Main content - clinical and precise */}
-              <div className="flex-1 overflow-auto bg-[#fafafa]">
-                <div className="flex flex-col lg:flex-row min-h-full">
-                  
-                  {/* Diagram Area */}
-                  <div className="flex-1 p-4 sm:p-6 flex flex-col min-w-0">
-                    
-                    {/* Findings - Mobile Only (Top) */}
-                    <div className="lg:hidden mb-6 space-y-4">
-                        {aiResult?.essence && (
-                            <div className="bg-white p-4 rounded-xl border border-black/[0.04]">
-                                <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-black/20 mb-2">Core Premise</p>
-                                <p className="text-sm text-black/80 font-medium leading-relaxed">{aiResult.essence}</p>
-                            </div>
-                        )}
-                    </div>
+              {/* Scrollable content */}
+              <div className="flex-1 px-4 md:px-10 py-8 md:py-12">
+                <div className="max-w-6xl mx-auto space-y-10 md:space-y-16">
 
-                    {/* Diagram Container */}
-                    <div className="bg-white rounded-2xl border border-black/[0.04] shadow-[0_8px_30px_rgb(0,0,0,0.02)] relative min-h-[500px] flex flex-col items-center">
-                      <div className="absolute inset-0 opacity-[0.015] pointer-events-none rounded-2xl" style={{ backgroundImage: 'radial-gradient(#000 1px, transparent 1px)', backgroundSize: '24px 24px' }} />
-                      
+                  {/* Core Premise - Hero style */}
+                  {aiResult?.essence && (
+                    <div className="text-center max-w-3xl mx-auto">
+                      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-black/30 mb-4">Core Premise</p>
+                      <h1
+                        className="text-2xl md:text-3xl lg:text-4xl text-black/80 leading-relaxed"
+                        style={{ fontFamily: "Georgia, 'Times New Roman', serif", fontStyle: "italic" }}
+                      >
+                        {aiResult.essence}
+                      </h1>
+                    </div>
+                  )}
+
+                  {/* Legend bar */}
+                  <div className="flex items-center justify-center gap-3 flex-wrap">
+                    <span className="text-xs px-3 py-1.5 rounded-lg bg-blue-50 text-blue-700 font-medium border border-blue-100">Claim</span>
+                    <span className="text-xs px-3 py-1.5 rounded-lg bg-amber-50 text-amber-700 font-medium border border-amber-100">Assumption</span>
+                    <span className="text-xs px-3 py-1.5 rounded-lg bg-green-50 text-green-700 font-medium border border-green-100">Evidence</span>
+                    <span className="text-xs px-3 py-1.5 rounded-lg bg-purple-50 text-purple-700 font-medium border border-purple-100">Decision</span>
+                    <span className="text-xs px-3 py-1.5 rounded-lg bg-pink-50 text-pink-700 font-medium border border-pink-100">Risk</span>
+                  </div>
+
+                  {/* Diagram Section */}
+                  <div className="bg-white rounded-2xl md:rounded-3xl border border-black/[0.06] shadow-xl shadow-black/[0.03] overflow-hidden">
+                    <div className="relative min-h-[400px] md:min-h-[550px] lg:min-h-[650px]">
+                      <div className="absolute inset-0 opacity-[0.02] pointer-events-none" style={{ backgroundImage: 'radial-gradient(#000 1px, transparent 1px)', backgroundSize: '20px 20px' }} />
+
                       {isAnalyzing ? (
-                        <div className="flex flex-col items-center justify-center flex-1 py-10 gap-4">
-                          <div className="w-8 h-8 border-3 border-black/10 border-t-black/40 rounded-full animate-spin" />
+                        <div className="absolute inset-0 flex flex-col items-center justify-center gap-5">
+                          <div className="w-10 h-10 border-3 border-black/10 border-t-black/50 rounded-full animate-spin" />
                           <div className="text-center">
-                            <p className="text-[14px] font-medium text-black/60 mb-1">Analyzing structure...</p>
-                            <p className="text-[12px] text-black/30">Extracting logic and connections</p>
+                            <p className="text-base font-medium text-black/60 mb-1">Analyzing structure...</p>
+                            <p className="text-sm text-black/30">Extracting logic and connections</p>
                           </div>
                         </div>
                       ) : mermaidChart ? (
-                        <div className="w-full p-4 sm:p-8 lg:p-12 overflow-x-auto">
+                        <div className="w-full h-full p-6 md:p-10 lg:p-14 overflow-auto">
                           <MermaidDiagram chart={mermaidChart} className="min-w-full" />
                         </div>
                       ) : (
-                        <div className="flex items-center justify-center flex-1 py-20 text-center">
+                        <div className="absolute inset-0 flex items-center justify-center text-center">
                           <div>
-                            <p className="text-[14px] text-black/40 mb-2">No diagram available</p>
-                            <p className="text-[12px] text-black/25">Click "Refresh" to generate visualization</p>
+                            <p className="text-base text-black/40 mb-2">No diagram available</p>
+                            <p className="text-sm text-black/25">Click "Refresh" to generate visualization</p>
                           </div>
                         </div>
                       )}
                     </div>
                   </div>
 
-                  {/* Sidebar - Desktop (Right) / Mobile (Bottom) */}
-                  <div className="w-full lg:w-80 border-t lg:border-t-0 lg:border-l border-black/[0.04] bg-white flex flex-col flex-shrink-0">
-                    <div className="p-6 space-y-8">
-                        {/* Legend */}
-                        <div className="p-4 bg-gray-50 rounded-xl border border-black/[0.02]">
-                            <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-black/20 mb-3">Legend</p>
-                            <div className="flex flex-wrap gap-2">
-                                <span className="text-[10px] px-2 py-0.5 rounded bg-blue-50 text-blue-700 font-medium border border-blue-100">Claim</span>
-                                <span className="text-[10px] px-2 py-0.5 rounded bg-amber-50 text-amber-700 font-medium border border-amber-100">Assumption</span>
-                                <span className="text-[10px] px-2 py-0.5 rounded bg-green-50 text-green-700 font-medium border border-green-100">Evidence</span>
-                                <span className="text-[10px] px-2 py-0.5 rounded bg-purple-50 text-purple-700 font-medium border border-purple-100">Decision</span>
-                                <span className="text-[10px] px-2 py-0.5 rounded bg-pink-50 text-pink-700 font-medium border border-pink-100">Risk</span>
-                            </div>
-                        </div>
+                  {/* Insights Grid */}
+                  {((aiResult?.gaps && aiResult.gaps.length > 0) || (aiResult?.suggestions && aiResult.suggestions.length > 0)) && (
+                    <div className="grid md:grid-cols-2 gap-6 md:gap-8">
 
-                      {/* Essence */}
-                      {aiResult?.essence && (
-                        <div>
-                          <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-black/20 mb-3">Core Premise</p>
-                          <p className="text-[14px] text-black/80 font-medium leading-relaxed">{aiResult.essence}</p>
-                        </div>
-                      )}
-
-                      {/* Gaps */}
+                      {/* Structural Gaps */}
                       {aiResult?.gaps && aiResult.gaps.length > 0 && (
-                        <div>
-                          <div className="flex items-center gap-2 mb-4">
-                            <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-black/20">Structural Gaps</p>
-                            <div className="h-[1px] flex-1 bg-black/[0.04]" />
+                        <div className="bg-white rounded-2xl border border-black/[0.06] p-6 md:p-8 shadow-lg shadow-black/[0.02]">
+                          <div className="flex items-center gap-3 mb-6">
+                            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-100 to-orange-100 flex items-center justify-center border border-amber-200">
+                              <AlertTriangle size={18} className="text-amber-600" />
+                            </div>
+                            <div>
+                              <h3 className="text-lg font-semibold text-black/80">Structural Gaps</h3>
+                              <p className="text-xs text-black/40">{aiResult.gaps.length} gaps identified</p>
+                            </div>
                           </div>
-                          <div className="space-y-4">
+                          <div className="space-y-5">
                             {aiResult.gaps.map((gap, i) => (
-                              <div key={i} className="flex items-start gap-3 group">
-                                <span className="w-5 h-5 rounded-full bg-black/[0.03] text-black/30 flex items-center justify-center text-[10px] font-bold flex-shrink-0 group-hover:bg-amber-100 group-hover:text-amber-600 transition-colors">
-                                  {i + 1}
-                                </span>
-                                <p className="text-[13px] text-black/50 leading-relaxed group-hover:text-black/70 transition-colors">{gap}</p>
+                              <div key={i} className="group">
+                                <div className="flex items-start gap-4">
+                                  <span className="w-7 h-7 rounded-full bg-amber-50 text-amber-600 flex items-center justify-center text-sm font-bold flex-shrink-0 border border-amber-100 group-hover:bg-amber-100 transition-colors">
+                                    {i + 1}
+                                  </span>
+                                  <div className="flex-1">
+                                    <p className="text-base text-black/70 leading-relaxed group-hover:text-black/90 transition-colors">{gap}</p>
+                                    {aiResult.thoughts?.gaps?.[i] && (
+                                      <p className="text-sm text-black/40 mt-2 italic leading-relaxed">{aiResult.thoughts.gaps[i]}</p>
+                                    )}
+                                  </div>
+                                </div>
+                                {i < aiResult.gaps.length - 1 && (
+                                  <div className="h-[1px] bg-black/[0.04] mt-5 ml-11" />
+                                )}
                               </div>
                             ))}
                           </div>
                         </div>
                       )}
 
-                      {/* Next Steps */}
+                      {/* Refinements */}
                       {aiResult?.suggestions && aiResult.suggestions.length > 0 && (
-                        <div>
-                          <div className="flex items-center gap-2 mb-4">
-                            <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-black/20">Refinements</p>
-                            <div className="h-[1px] flex-1 bg-black/[0.04]" />
+                        <div className="bg-white rounded-2xl border border-black/[0.06] p-6 md:p-8 shadow-lg shadow-black/[0.02]">
+                          <div className="flex items-center gap-3 mb-6">
+                            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-100 to-green-100 flex items-center justify-center border border-emerald-200">
+                              <Lightbulb size={18} className="text-emerald-600" />
+                            </div>
+                            <div>
+                              <h3 className="text-lg font-semibold text-black/80">Refinements</h3>
+                              <p className="text-xs text-black/40">{aiResult.suggestions.length} suggestions</p>
+                            </div>
                           </div>
-                          <div className="space-y-4">
+                          <div className="space-y-5">
                             {aiResult.suggestions.map((s, i) => (
-                              <div key={i} className="flex items-start gap-3 group">
-                                <div className="w-5 h-5 rounded-full bg-black/[0.03] text-black/30 flex items-center justify-center flex-shrink-0 group-hover:bg-emerald-100 group-hover:text-emerald-600 transition-colors">
-                                  <ArrowRight size={10} strokeWidth={3} />
+                              <div key={i} className="group">
+                                <div className="flex items-start gap-4">
+                                  <div className="w-7 h-7 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center flex-shrink-0 border border-emerald-100 group-hover:bg-emerald-100 transition-colors">
+                                    <ArrowRight size={14} strokeWidth={2.5} />
+                                  </div>
+                                  <div className="flex-1">
+                                    <p className="text-base text-black/70 leading-relaxed group-hover:text-black/90 transition-colors">{s}</p>
+                                    {aiResult.thoughts?.suggestions?.[i] && (
+                                      <p className="text-sm text-black/40 mt-2 italic leading-relaxed">{aiResult.thoughts.suggestions[i]}</p>
+                                    )}
+                                  </div>
                                 </div>
-                                <p className="text-[13px] text-black/50 leading-relaxed group-hover:text-black/70 transition-colors">{s}</p>
+                                {i < aiResult.suggestions.length - 1 && (
+                                  <div className="h-[1px] bg-black/[0.04] mt-5 ml-11" />
+                                )}
                               </div>
                             ))}
                           </div>
                         </div>
                       )}
                     </div>
-                  </div>
+                  )}
+
+                  {/* Bottom spacer */}
+                  <div className="h-8" />
                 </div>
               </div>
             </motion.div>
@@ -1274,7 +1840,10 @@ export default function AppPage() {
                   <p className="text-[9px] font-semibold uppercase tracking-wider text-black/25 px-2">Insert</p>
                 </div>
                 <div className="p-1">
-                  {(["claim", "assumption", "evidence", "decision", "risk", "unknown", "text"] as BlockType[]).map((type) => (
+                  {(documentType === "visualization" 
+                    ? (["claim", "assumption", "evidence", "decision", "risk", "unknown", "text"] as BlockType[])
+                    : (["text"] as BlockType[])
+                  ).map((type) => (
                     <button key={type} onClick={() => addBlock(type)} className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-black/[0.03] transition-all">
                       <div className={cn("w-5 h-5 rounded flex items-center justify-center", type === "text" ? "bg-black/[0.03] text-black/40" : blockMeta[type].bgColor, blockMeta[type].color)}>{blockMeta[type].icon}</div>
                       <span className="text-sm text-black/70">{blockMeta[type].label}</span>
@@ -1326,6 +1895,86 @@ export default function AppPage() {
                 </button>
               </div>
             </div>
+
+            {/* Usage Limits - Prominent Display */}
+            {!isPro ? (
+              <div className="px-3 py-2 border-b border-black/[0.04] bg-black/[0.01]">
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-[10px] font-medium text-black/50 uppercase tracking-wider">Usage Limits</span>
+                  {Object.entries(FREE_LIMITS).some(([action]) => {
+                    const remaining = getRemainingUses(action);
+                    return remaining !== Infinity && remaining < FREE_LIMITS[action];
+                  }) && (
+                    <button
+                      onClick={() => setShowProModal(true)}
+                      className="text-[10px] text-black/40 hover:text-black/60 underline"
+                    >
+                      Upgrade
+                    </button>
+                  )}
+                </div>
+                <div className="grid grid-cols-3 gap-1.5 text-[9px]">
+                  {focusActionButtons.map((item) => {
+                    const remaining = getRemainingUses(item.action);
+                    const limit = FREE_LIMITS[item.action] || 0;
+                    const used = focusUsage[item.action] || 0;
+                    const showCount = remaining !== Infinity;
+                    const isLow = showCount && remaining <= 1;
+                    return (
+                      <div
+                        key={item.action}
+                        className={cn(
+                          "px-1.5 py-1 rounded border",
+                          isLow
+                            ? "bg-rose-50/50 border-rose-200/50 text-rose-600"
+                            : "bg-white/50 border-black/[0.06] text-black/60"
+                        )}
+                      >
+                        <div className="font-medium truncate">{item.label}</div>
+                        {showCount ? (
+                          <div className="text-[8px] text-black/40">
+                            {used}/{limit}
+                          </div>
+                        ) : (
+                          <div className="text-[8px] text-emerald-600">∞</div>
+                        )}
+                      </div>
+                    );
+                  })}
+                  <div className={cn(
+                    "px-1.5 py-1 rounded border",
+                    getRemainingUses("chat") === Infinity
+                      ? "bg-white/50 border-black/[0.06] text-black/60"
+                      : (getRemainingUses("chat") <= 1
+                          ? "bg-rose-50/50 border-rose-200/50 text-rose-600"
+                          : "bg-white/50 border-black/[0.06] text-black/60")
+                  )}>
+                    <div className="font-medium truncate">Chat</div>
+                    {getRemainingUses("chat") === Infinity ? (
+                      <div className="text-[8px] text-emerald-600">∞</div>
+                    ) : (
+                      <div className="text-[8px] text-black/40">
+                        {focusUsage.chat || 0}/{FREE_LIMITS.chat}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="px-3 py-2 border-b border-black/[0.04]">
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-gradient-to-r from-amber-100 to-orange-100 border border-amber-200/50">
+                    <Crown size={10} className="text-amber-600" />
+                    <span className="text-[10px] font-semibold text-amber-700">Pro</span>
+                  </div>
+                  <span className="text-[10px] text-black/40">
+                    {premiumPromptsUsed >= premiumPromptsLimit
+                      ? "Free models (unlimited)"
+                      : `${premiumPromptsLimit - premiumPromptsUsed} premium prompts`}
+                  </span>
+                </div>
+              </div>
+            )}
 
             {/* Actions - compact row */}
             <div className="px-3 py-2 border-b border-black/[0.04]">
@@ -1385,6 +2034,28 @@ export default function AppPage() {
                           <div className="text-[13px] text-black/70 leading-relaxed whitespace-pre-wrap">
                             {msg.content}
                           </div>
+                          {/* Upgrade prompt for free users - show after every assistant response (except upgrade prompt messages) */}
+                          {!isPro && msg.role === "assistant" && !msg.content.includes("💡 For more high-quality responses") && (
+                            <div className="mt-3 p-3 rounded-lg bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200/50">
+                              <div className="flex items-start gap-2.5">
+                                <Crown size={14} className="text-amber-600 mt-0.5 flex-shrink-0" />
+                                <div className="flex-1">
+                                  <p className="text-[12px] font-medium text-black/80 mb-1">Upgrade to Pro</p>
+                                  <p className="text-[11px] text-black/60 leading-relaxed mb-2">
+                                    For more high-quality responses, upgrade to Pro and get 150 premium prompts/month with Claude, ChatGPT, and more.
+                                  </p>
+                                  <button
+                                    onClick={() => {
+                                      setShowProModal(true);
+                                    }}
+                                    className="text-[11px] font-semibold text-amber-700 hover:text-amber-800 underline"
+                                  >
+                                    Learn more →
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          )}
                           {/* Add/Replace buttons for all assistant responses */}
                           <div className="flex gap-3">
                             <button
@@ -1393,15 +2064,31 @@ export default function AppPage() {
                                 const textareas = document.querySelectorAll('textarea');
                                 if (textareas.length > 0) {
                                   const textarea = textareas[textareas.length - 1] as HTMLTextAreaElement;
-                                  const start = textarea.selectionStart;
-                                  const end = textarea.selectionEnd;
-                                  const newText = textarea.value.substring(0, start) + msg.content + textarea.value.substring(end);
-                                  textarea.value = newText;
-                                  textarea.focus();
-                                  textarea.setSelectionRange(start + msg.content.length, start + msg.content.length);
-                                  // Trigger the onChange to update the block
-                                  const event = new Event('input', { bubbles: true });
-                                  textarea.dispatchEvent(event);
+                                  const blockElement = textarea.closest('[data-block-id]');
+                                  const blockId = blockElement?.getAttribute('data-block-id');
+                                  
+                                  if (blockId) {
+                                    const start = textarea.selectionStart;
+                                    const end = textarea.selectionEnd;
+                                    const currentContent = textarea.value;
+                                    const newText = currentContent.substring(0, start) + msg.content + currentContent.substring(end);
+                                    
+                                    // Update the block state directly
+                                    updateBlock(blockId, newText);
+                                    
+                                    // Update textarea without scrolling
+                                    textarea.value = newText;
+                                    const newCursorPos = start + msg.content.length;
+                                    textarea.setSelectionRange(newCursorPos, newCursorPos);
+                                    
+                                    // Auto-resize the textarea
+                                    autoResize(textarea);
+                                    
+                                    // Focus without scrolling
+                                    const scrollTop = window.scrollY || document.documentElement.scrollTop;
+                                    textarea.focus();
+                                    window.scrollTo(0, scrollTop);
+                                  }
                                 }
                               }}
                               className="text-[11px] text-green-600 hover:text-green-700 hover:underline"
@@ -1413,19 +2100,36 @@ export default function AppPage() {
                                 onClick={() => {
                                   // Replace the currently selected text with this response
                                   if (selectedRange.textarea) {
-                                    // Textarea replacement
+                                    // Textarea replacement - find the block ID
                                     const textarea = selectedRange.textarea;
-                                    const newText = textarea.value.substring(0, selectedRange.start) + 
-                                                   msg.content + 
-                                                   textarea.value.substring(selectedRange.end);
-                                    textarea.value = newText;
-                                    textarea.focus();
-                                    textarea.setSelectionRange(selectedRange.start + msg.content.length, selectedRange.start + msg.content.length);
-                                    // Trigger the onChange to update the block
-                                    const event = new Event('input', { bubbles: true });
-                                    textarea.dispatchEvent(event);
+                                    const blockElement = textarea.closest('[data-block-id]');
+                                    const blockId = blockElement?.getAttribute('data-block-id');
+                                    
+                                    if (blockId) {
+                                      // Calculate new text
+                                      const currentContent = textarea.value;
+                                      const newText = currentContent.substring(0, selectedRange.start) + 
+                                                     msg.content + 
+                                                     currentContent.substring(selectedRange.end);
+                                      
+                                      // Update the block state directly
+                                      updateBlock(blockId, newText);
+                                      
+                                      // Update textarea without scrolling
+                                      textarea.value = newText;
+                                      const newCursorPos = selectedRange.start + msg.content.length;
+                                      textarea.setSelectionRange(newCursorPos, newCursorPos);
+                                      
+                                      // Auto-resize the textarea
+                                      autoResize(textarea);
+                                      
+                                      // Focus without scrolling
+                                      const scrollTop = window.scrollY || document.documentElement.scrollTop;
+                                      textarea.focus();
+                                      window.scrollTo(0, scrollTop);
+                                    }
                                   } else {
-                                    // Regular text selection replacement
+                                    // Regular text selection replacement (for non-textarea content)
                                     const storedRange = (window as any).__lastSelectionRange;
                                     if (storedRange) {
                                       storedRange.deleteContents();
@@ -1466,11 +2170,14 @@ export default function AppPage() {
             {/* Input - minimal */}
             <form onSubmit={handleFocusChatSubmit} className="p-3 border-t border-black/[0.06]">
               {!isActionAllowed('chat') ? (
-                  <div className="text-center py-2">
-                      <p className="text-[11px] text-black/40 mb-2">Free chat limit reached.</p>
+                  <div className="text-center py-3 px-4">
+                      <p className="text-[11px] text-black/50 mb-2">Free chat limit reached.</p>
                       <button 
                         type="button"
-                        onClick={() => setShowProModal(true)}
+                        onClick={() => {
+                          setLimitReachedAction('chat');
+                          setShowLimitReachedModal(true);
+                        }}
                         className="text-[11px] font-semibold text-black underline hover:text-black/70"
                       >
                         Upgrade to continue
@@ -1544,7 +2251,7 @@ export default function AppPage() {
                   </div>
 
                   <p className="text-[11px] text-black/30 mb-6">
-                    Free: 3 verifications, 1 of each other action. Upgrade for unlimited.
+                    Free: 3 verifications, 1 of each other action. Upgrade for more access.
                   </p>
 
                   <div className="flex items-center justify-between">
@@ -1588,16 +2295,78 @@ export default function AppPage() {
               exit={{ opacity: 0, y: 10 }}
               className="fixed inset-0 z-[301] flex items-center justify-center p-6 pointer-events-none"
             >
-              <div className="bg-white rounded-xl shadow-2xl max-w-sm w-full pointer-events-auto">
+              <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full pointer-events-auto border border-black/[0.06]">
                 <div className="p-6">
-                  <p className="text-[13px] font-medium text-black/80 mb-4">Visualize</p>
+                  <div className="flex items-center justify-between mb-4">
+                    <p className="text-sm font-medium text-black/80">How to Use Visualization</p>
+                    <button
+                      onClick={() => setShowVisualizeIntro(false)}
+                      className="p-1 hover:bg-black/5 rounded transition-colors"
+                    >
+                      <X size={16} className="text-black/30" />
+                    </button>
+                  </div>
                   
-                  <div className="space-y-3 text-[13px] text-black/50 mb-6">
-                    <p>Extracts the logical structure from your document into a diagram.</p>
-                    <p>Best when your document gets long or ideas are tangled.</p>
+                  <div className="space-y-4 mb-6">
+                    {/* Step 1: Write */}
+                    <div className="flex gap-3">
+                      <div className="flex-shrink-0 w-6 h-6 rounded-full bg-black/5 flex items-center justify-center text-[10px] font-semibold text-black/60">
+                        1
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-[12px] font-medium text-black/70 mb-1">Write your thoughts</p>
+                        <p className="text-[11px] text-black/50 leading-relaxed">
+                          Type naturally. Your ideas don't need to be structured yet.
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Step 2: Right-click */}
+                    <div className="flex gap-3">
+                      <div className="flex-shrink-0 w-6 h-6 rounded-full bg-black/5 flex items-center justify-center text-[10px] font-semibold text-black/60">
+                        2
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-[12px] font-medium text-black/70 mb-1">Right-click to add structure</p>
+                        <p className="text-[11px] text-black/50 leading-relaxed mb-2">
+                          Right-click anywhere in your text to insert structured blocks:
+                        </p>
+                        <div className="grid grid-cols-3 gap-1.5 text-[10px]">
+                          <div className="px-2 py-1 rounded border border-blue-200 bg-blue-50/50 text-blue-700 font-medium">Claim</div>
+                          <div className="px-2 py-1 rounded border border-amber-200 bg-amber-50/50 text-amber-700 font-medium">Assumption</div>
+                          <div className="px-2 py-1 rounded border border-emerald-200 bg-emerald-50/50 text-emerald-700 font-medium">Evidence</div>
+                          <div className="px-2 py-1 rounded border border-purple-200 bg-purple-50/50 text-purple-700 font-medium">Decision</div>
+                          <div className="px-2 py-1 rounded border border-rose-200 bg-rose-50/50 text-rose-700 font-medium">Risk</div>
+                          <div className="px-2 py-1 rounded border border-slate-200 bg-slate-50/50 text-slate-700 font-medium">Unknown</div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Step 3: Visualize */}
+                    <div className="flex gap-3">
+                      <div className="flex-shrink-0 w-6 h-6 rounded-full bg-black/5 flex items-center justify-center text-[10px] font-semibold text-black/60">
+                        3
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-[12px] font-medium text-black/70 mb-1">Click Visualize</p>
+                        <p className="text-[11px] text-black/50 leading-relaxed">
+                          Once you have content, click "Visualize" to see your logic mapped as a diagram with connections and gaps identified.
+                        </p>
+                      </div>
+                    </div>
                   </div>
 
-                  <div className="flex items-center justify-between">
+                  {/* Visual diagram */}
+                  <div className="mb-6 p-4 bg-black/[0.02] rounded-lg border border-black/[0.04]">
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="w-2 h-2 rounded-full bg-blue-500"></div>
+                      <div className="flex-1 h-px bg-black/10"></div>
+                      <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
+                    </div>
+                    <p className="text-[10px] text-black/40 text-center">Right-click menu appears here</p>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-4 border-t border-black/[0.04]">
                     <label className="flex items-center gap-2 cursor-pointer">
                       <input
                         type="checkbox"
@@ -1611,7 +2380,7 @@ export default function AppPage() {
                       onClick={() => completeVisualizeIntro(dontShowVisualizeIntro)}
                       className="px-4 py-2 bg-black text-white rounded-lg text-[12px] font-medium hover:bg-black/90 transition-colors"
                     >
-                      Continue
+                      Got it
                     </button>
                   </div>
                 </div>
@@ -1691,16 +2460,365 @@ export default function AppPage() {
         )}
       </AnimatePresence>
 
-      {/* Pro Upgrade Modal */}
+      {/* Pro Upgrade Modal - Cursor-style minimal */}
       <AnimatePresence>
         {showProModal && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/50 z-[200]"
+              onClick={() => setShowProModal(false)}
+            />
+            <motion.div
+              initial={{ opacity: 0, y: 4 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 4 }}
+              transition={{ duration: 0.15 }}
+              className="fixed inset-0 z-[201] flex items-center justify-center p-6 pointer-events-none"
+            >
+              <div className="bg-[#1e1e1e] rounded-lg shadow-2xl w-[360px] pointer-events-auto border border-white/10 overflow-hidden">
+                {/* Header */}
+                <div className="px-5 py-4 border-b border-white/[0.06] flex items-center justify-between">
+                  <div>
+                    <p className="text-[14px] font-medium text-white/90">Upgrade to Pro</p>
+                    <p className="text-[12px] text-white/40 mt-0.5">Get more AI access</p>
+                  </div>
+                  <button
+                    onClick={() => setShowProModal(false)}
+                    className="p-1.5 hover:bg-white/[0.06] rounded transition-colors"
+                  >
+                    <X size={14} className="text-white/40" />
+                  </button>
+                </div>
+
+                {/* Content */}
+                <div className="px-5 py-4">
+                  <p className="text-[11px] text-white/40 uppercase tracking-wider mb-3">Unlock premium features</p>
+
+                  <div className="space-y-2 mb-5">
+                    <div className="flex items-center gap-2.5 text-[13px] text-white/70">
+                      <Check size={14} className="text-violet-400" />
+                      <span>Unlimited documents</span>
+                    </div>
+                    <div className="flex items-center gap-2.5 text-[13px] text-white/70">
+                      <Check size={14} className="text-violet-400" />
+                      <span>150 Claude & GPT-4 prompts/month</span>
+                    </div>
+                    <div className="flex items-center gap-2.5 text-[13px] text-white/70">
+                      <Check size={14} className="text-violet-400" />
+                      <span>Unlimited free model access after limit</span>
+                    </div>
+                    <div className="flex items-center gap-2.5 text-[13px] text-white/70">
+                      <Check size={14} className="text-violet-400" />
+                      <span>Graph-aware AI rewrites</span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-baseline gap-1 mb-4">
+                    <span className="text-2xl font-semibold text-white">$9.99</span>
+                    <span className="text-white/40 text-sm">/month</span>
+                  </div>
+
+                  <button
+                    onClick={() => {
+                      setShowProModal(false);
+                      router.push("/pricing");
+                    }}
+                    className="w-full py-2.5 bg-gradient-to-r from-violet-500 to-purple-500 text-white rounded-md font-semibold text-[13px] hover:from-violet-600 hover:to-purple-600 transition-all"
+                  >
+                    Upgrade to Pro
+                  </button>
+                </div>
+
+                <div className="px-5 py-3 border-t border-white/[0.06] bg-white/[0.02]">
+                  <p className="text-[11px] text-white/30 text-center">
+                    Cancel anytime. 14-day money-back guarantee.
+                  </p>
+                </div>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* Upgrade Success Modal - Cursor-style minimal */}
+      <AnimatePresence>
+        {showUpgradeSuccess && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/50 z-[250]"
+              onClick={() => setShowUpgradeSuccess(false)}
+            />
+            <motion.div
+              initial={{ opacity: 0, y: 4 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 4 }}
+              transition={{ duration: 0.15 }}
+              className="fixed inset-0 z-[251] flex items-center justify-center p-6 pointer-events-none"
+            >
+              <div className="bg-[#1e1e1e] rounded-lg shadow-2xl w-[360px] pointer-events-auto border border-white/10 overflow-hidden">
+                <div className="px-5 py-4 border-b border-white/[0.06]">
+                  <p className="text-[14px] font-medium text-white/90">Welcome to Pro</p>
+                  <p className="text-[12px] text-white/40 mt-0.5">Your account has been upgraded</p>
+                </div>
+
+                <div className="px-5 py-4">
+                  <div className="space-y-2 mb-5">
+                    <div className="flex items-center gap-2.5 text-[13px] text-white/70">
+                      <Check size={14} className="text-emerald-400" />
+                      <span>Unlimited documents unlocked</span>
+                    </div>
+                    <div className="flex items-center gap-2.5 text-[13px] text-white/70">
+                      <Check size={14} className="text-emerald-400" />
+                      <span>150 Claude & GPT-4 prompts/month</span>
+                    </div>
+                    <div className="flex items-center gap-2.5 text-[13px] text-white/70">
+                      <Check size={14} className="text-emerald-400" />
+                      <span>Unlimited free model access after limit</span>
+                    </div>
+                    <div className="flex items-center gap-2.5 text-[13px] text-white/70">
+                      <Check size={14} className="text-emerald-400" />
+                      <span>Graph-aware AI rewrites</span>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => setShowUpgradeSuccess(false)}
+                    className="w-full py-2.5 bg-gradient-to-r from-emerald-500 to-green-500 text-white rounded-md font-semibold text-[13px] hover:from-emerald-600 hover:to-green-600 transition-all"
+                  >
+                    Start using Pro
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* Limit Reached Modal - Cursor-style */}
+      <AnimatePresence>
+        {showLimitReachedModal && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[200]"
+              onClick={() => setShowLimitReachedModal(false)}
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.96, y: 8 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.96, y: 8 }}
+              transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+              className="fixed inset-0 z-[201] flex items-center justify-center p-6 pointer-events-none"
+            >
+              <div className="bg-[#1e1e1e] rounded-xl shadow-2xl w-full max-w-[420px] pointer-events-auto border border-white/[0.08] overflow-hidden">
+                {/* Header */}
+                <div className="px-6 py-5 border-b border-white/[0.06] flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-violet-500/20 to-purple-500/20 border border-violet-500/30 flex items-center justify-center">
+                      <Crown size={18} className="text-violet-400" />
+                    </div>
+                    <div>
+                      <p className="text-[15px] font-semibold text-white/95">Upgrade to Pro</p>
+                      <p className="text-[12px] text-white/50 mt-0.5">
+                        {limitReachedAction === 'chat'
+                          ? 'Chat limit reached'
+                          : limitReachedAction === 'counterargument'
+                          ? 'Counterargument limit reached'
+                          : limitReachedAction === 'improve' || limitReachedAction === 'polish'
+                          ? 'Polish limit reached'
+                          : 'Action limit reached'}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setShowLimitReachedModal(false)}
+                    className="p-1.5 hover:bg-white/[0.08] rounded-lg transition-colors"
+                  >
+                    <X size={16} className="text-white/40" />
+                  </button>
+                </div>
+
+                {/* Content */}
+                <div className="px-6 py-5">
+                  <div className="mb-5">
+                    <p className="text-[13px] text-white/70 leading-relaxed mb-4">
+                      You've reached your free limit for this feature. Upgrade to Pro for unlimited documents, 150 premium prompts/month, and more.
+                    </p>
+
+                    <div className="space-y-2.5 mb-5">
+                      <div className="flex items-start gap-3 text-[13px] text-white/80">
+                        <div className="w-5 h-5 rounded-full bg-gradient-to-br from-violet-500 to-purple-500 flex items-center justify-center flex-shrink-0 mt-0.5">
+                          <Check size={10} className="text-white" />
+                        </div>
+                        <div>
+                          <p className="font-medium">Unlimited documents</p>
+                          <p className="text-[11px] text-white/50 mt-0.5">No more 3 document limit</p>
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-3 text-[13px] text-white/80">
+                        <div className="w-5 h-5 rounded-full bg-gradient-to-br from-violet-500 to-purple-500 flex items-center justify-center flex-shrink-0 mt-0.5">
+                          <Check size={10} className="text-white" />
+                        </div>
+                        <div>
+                          <p className="font-medium">150 premium prompts/month</p>
+                          <p className="text-[11px] text-white/50 mt-0.5">Claude, GPT-4, and latest models</p>
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-3 text-[13px] text-white/80">
+                        <div className="w-5 h-5 rounded-full bg-gradient-to-br from-violet-500 to-purple-500 flex items-center justify-center flex-shrink-0 mt-0.5">
+                          <Check size={10} className="text-white" />
+                        </div>
+                        <div>
+                          <p className="font-medium">Unlimited free model access</p>
+                          <p className="text-[11px] text-white/50 mt-0.5">After premium limit reached</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-baseline gap-1.5 mb-5 pb-5 border-b border-white/[0.06]">
+                    <span className="text-3xl font-bold text-white">$9.99</span>
+                    <span className="text-white/50 text-sm">/month</span>
+                    <span className="ml-auto text-[11px] text-white/40">Cancel anytime</span>
+                  </div>
+
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => setShowLimitReachedModal(false)}
+                      className="flex-1 px-4 py-2.5 bg-white/[0.08] text-white/70 rounded-lg text-[13px] font-medium hover:bg-white/[0.12] transition-colors"
+                    >
+                      Maybe later
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowLimitReachedModal(false);
+                        router.push("/pricing");
+                      }}
+                      className="flex-1 px-4 py-2.5 bg-gradient-to-r from-violet-500 to-purple-500 text-white rounded-lg text-[13px] font-semibold hover:from-violet-600 hover:to-purple-600 transition-all shadow-lg shadow-violet-500/20"
+                    >
+                      Upgrade now
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* Document Limit Modal */}
+      <AnimatePresence>
+        {showDocLimitModal && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[200]"
+              onClick={() => setShowDocLimitModal(false)}
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.96, y: 8 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.96, y: 8 }}
+              transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+              className="fixed inset-0 z-[201] flex items-center justify-center p-6 pointer-events-none"
+            >
+              <div className="bg-[#1e1e1e] rounded-xl shadow-2xl w-full max-w-[420px] pointer-events-auto border border-white/[0.08] overflow-hidden">
+                {/* Header */}
+                <div className="px-6 py-5 border-b border-white/[0.06] flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-violet-500/20 to-purple-500/20 border border-violet-500/30 flex items-center justify-center">
+                      <FileText size={18} className="text-violet-400" />
+                    </div>
+                    <div>
+                      <p className="text-[15px] font-semibold text-white/95">Document limit reached</p>
+                      <p className="text-[12px] text-white/50 mt-0.5">You've used all 3 free documents</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setShowDocLimitModal(false)}
+                    className="p-1.5 hover:bg-white/[0.06] rounded-lg transition-colors"
+                  >
+                    <X size={16} className="text-white/40" />
+                  </button>
+                </div>
+
+                {/* Content */}
+                <div className="px-6 py-5">
+                  <p className="text-[13px] text-white/60 mb-5 leading-relaxed">
+                    Upgrade to Pro for <span className="text-white font-medium">unlimited documents</span> plus premium AI with Claude & GPT-4.
+                  </p>
+
+                  <div className="space-y-2.5 mb-6 p-4 bg-white/[0.03] rounded-lg border border-white/[0.06]">
+                    <div className="flex items-center gap-2.5 text-[13px] text-white/70">
+                      <div className="w-5 h-5 rounded-full bg-gradient-to-br from-violet-500 to-purple-500 flex items-center justify-center">
+                        <Check size={10} className="text-white" />
+                      </div>
+                      <span>Unlimited documents</span>
+                    </div>
+                    <div className="flex items-center gap-2.5 text-[13px] text-white/70">
+                      <div className="w-5 h-5 rounded-full bg-gradient-to-br from-violet-500 to-purple-500 flex items-center justify-center">
+                        <Check size={10} className="text-white" />
+                      </div>
+                      <span>150 premium prompts/month (Claude & GPT-4)</span>
+                    </div>
+                    <div className="flex items-center gap-2.5 text-[13px] text-white/70">
+                      <div className="w-5 h-5 rounded-full bg-gradient-to-br from-violet-500 to-purple-500 flex items-center justify-center">
+                        <Check size={10} className="text-white" />
+                      </div>
+                      <span>Graph-aware AI actions</span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-baseline gap-2 mb-5">
+                    <span className="text-2xl font-bold text-white">$9.99</span>
+                    <span className="text-white/40 text-sm">/month</span>
+                    <span className="ml-auto text-[11px] text-white/40">Cancel anytime</span>
+                  </div>
+
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => setShowDocLimitModal(false)}
+                      className="flex-1 px-4 py-2.5 bg-white/[0.08] text-white/70 rounded-lg text-[13px] font-medium hover:bg-white/[0.12] transition-colors"
+                    >
+                      Maybe later
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowDocLimitModal(false);
+                        router.push("/pricing");
+                      }}
+                      className="flex-1 px-4 py-2.5 bg-gradient-to-r from-violet-500 to-purple-500 text-white rounded-lg text-[13px] font-semibold hover:from-violet-600 hover:to-purple-600 transition-all shadow-lg shadow-violet-500/20"
+                    >
+                      Upgrade to Pro
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* Mobile Warning Modal */}
+      <AnimatePresence>
+        {showMobileWarning && (
           <>
             <motion.div 
               initial={{ opacity: 0 }} 
               animate={{ opacity: 1 }} 
               exit={{ opacity: 0 }}
               className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[200]"
-              onClick={() => setShowProModal(false)}
+              onClick={() => setShowMobileWarning(false)}
             />
             <motion.div 
               initial={{ opacity: 0, scale: 0.98, y: 10 }} 
@@ -1708,59 +2826,74 @@ export default function AppPage() {
               exit={{ opacity: 0, scale: 0.98, y: 10 }}
               className="fixed inset-0 z-[201] flex items-center justify-center p-6 pointer-events-none"
             >
-              <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full p-8 pointer-events-auto border border-black/[0.03]">
-                <div className="flex items-center justify-between mb-6">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center">
-                      <Crown size={20} className="text-white" />
-                    </div>
-                    <div>
-                      <h2 className="text-lg font-semibold text-black">Upgrade to Pro</h2>
-                      <p className="text-xs text-black/40">Unlock unlimited potential</p>
-                    </div>
-                  </div>
-                  <button onClick={() => setShowProModal(false)} className="p-2 hover:bg-black/5 rounded-lg transition-colors">
+              <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 pointer-events-auto border border-black/[0.03]">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-lg font-semibold text-black">Mobile Experience</h2>
+                  <button
+                    onClick={() => setShowMobileWarning(false)}
+                    className="p-1 hover:bg-black/5 rounded transition-colors"
+                  >
                     <X size={18} className="text-black/30" />
                   </button>
                 </div>
-
-                <div className="space-y-3 mb-6">
-                  {[
-                    "Unlimited Focus Assistant actions",
-                    "Unlimited documents",
-                    "Unlimited visualizations",
-                    "Advanced AI analysis",
-                    "Gap detection & suggestions",
-                    "Priority support"
-                  ].map((feature, i) => (
-                    <div key={i} className="flex items-center gap-3 text-sm text-black/70">
-                      <Check size={16} className="text-emerald-500" />
-                      {feature}
-                    </div>
-                  ))}
+                
+                <div className="space-y-3 text-sm text-black/60 mb-6">
+                  <p>Visualization works best on desktop or in full-screen mode.</p>
+                  <p className="text-xs text-black/40">For the best experience, use a computer or rotate your device to landscape mode.</p>
                 </div>
 
-                <div className="p-4 rounded-xl bg-[#fafafa] border border-black/[0.04] mb-6">
-                  <div className="flex items-baseline gap-1">
-                    <span className="text-3xl font-bold text-black">$8.99</span>
-                    <span className="text-black/40">/month</span>
-                  </div>
-                  <p className="text-xs text-black/40 mt-1">Billed monthly. Cancel anytime.</p>
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setShowMobileWarning(false)}
+                    className="flex-1 px-4 py-2.5 bg-black/5 text-black/70 rounded-lg text-sm font-medium hover:bg-black/10 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={async () => {
+                      setShowMobileWarning(false);
+                      // Proceed anyway - visualization is FREE for everyone
+                      const allText = blocks.map(b => b.content).join("\n\n");
+                      setIsAnalyzing(true);
+                      setError(null);
+                      try {
+                        const res = await fetch("/api/visualize", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({
+                            text: allText,
+                            blocks: blocks.map(b => ({ type: b.type, content: b.content }))
+                          }),
+                        });
+                        const data = await res.json();
+                        if (data.error) throw new Error(data.error);
+                        if (data.result) {
+                          setAIResult(data.result);
+                          setShowVisualView(true);
+                          // Save visualization result
+                          if (currentDocId && session?.user?.id) {
+                            try {
+                              const { saveDocument } = await import("@/lib/db");
+                              await saveDocument(currentDocId, session.user.id, {
+                                visualization_result: data.result
+                              });
+                            } catch (err) {
+                              console.error("Failed to save visualization result:", err);
+                            }
+                          }
+                        }
+                      } catch (e: any) {
+                        setError("Visualization temporarily unavailable. Try again.");
+                        setTimeout(() => setError(null), 5000);
+                      } finally {
+                        setIsAnalyzing(false);
+                      }
+                    }}
+                    className="flex-1 px-4 py-2.5 bg-black text-white rounded-lg text-sm font-medium hover:bg-black/90 transition-colors"
+                  >
+                    Continue Anyway
+                  </button>
                 </div>
-
-                <button
-                  onClick={() => {
-                    setShowProModal(false);
-                    router.push("/pricing");
-                  }}
-                  className="w-full py-3.5 bg-black text-white rounded-xl font-semibold text-sm hover:bg-black/90 transition-all"
-                >
-                  View Pricing
-                </button>
-
-                <p className="text-center text-xs text-black/30 mt-4">
-                  14-day free trial included
-                </p>
               </div>
             </motion.div>
           </>

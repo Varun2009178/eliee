@@ -1,4 +1,51 @@
-# Database Migration for Focus Assistant Pro Features
+# Database Migrations
+
+## ⚠️ IMPORTANT: Complete Database Setup
+
+**Before running any migrations, make sure you've run the complete setup script:**
+
+Run `SETUP_DATABASE.sql` in your Supabase SQL Editor first. This creates all required tables, columns, indexes, and RLS policies.
+
+---
+
+## Quick Setup
+
+If you're setting up from scratch, run this single SQL file:
+- **`SETUP_DATABASE.sql`** - Complete database setup (tables, columns, indexes, RLS policies)
+
+This file will:
+- Create `documents` and `user_usage` tables if they don't exist
+- Add all required columns
+- Set up Row Level Security (RLS) policies
+- Create performance indexes
+- Set up auto-update triggers
+
+---
+
+## Document Type Support
+
+### Add `document_type` Column to Documents Table
+
+Run this SQL in your Supabase SQL Editor:
+
+```sql
+-- Add document_type column to documents table
+ALTER TABLE documents
+ADD COLUMN IF NOT EXISTS document_type TEXT DEFAULT 'visualization' CHECK (document_type IN ('visualization', 'ai_native'));
+
+-- Update existing documents to have a default type
+UPDATE documents
+SET document_type = 'visualization'
+WHERE document_type IS NULL;
+```
+
+This allows documents to be categorized as either:
+- `visualization`: For documents that use the visualization/visualize feature
+- `ai_native`: For documents that use the Focus Mode AI assistant
+
+---
+
+## Database Migration for Focus Assistant Pro Features
 
 ## Overview
 This migration adds Pro subscription support to the Focus Assistant feature. Users will have per-account usage limits that persist across sessions, and Pro users will have unlimited access.
@@ -13,6 +60,21 @@ Run this SQL in your Supabase SQL Editor:
 -- Add is_pro column to user_usage table
 ALTER TABLE user_usage
 ADD COLUMN IF NOT EXISTS is_pro BOOLEAN DEFAULT FALSE;
+
+-- Add premium prompt tracking columns
+ALTER TABLE user_usage
+ADD COLUMN IF NOT EXISTS premium_prompts_used INTEGER DEFAULT 0;
+
+ALTER TABLE user_usage
+ADD COLUMN IF NOT EXISTS premium_prompts_limit INTEGER DEFAULT 150;
+
+ALTER TABLE user_usage
+ADD COLUMN IF NOT EXISTS premium_reset_date TIMESTAMP WITH TIME ZONE;
+
+-- Set initial reset date for existing Pro users
+UPDATE user_usage
+SET premium_reset_date = (DATE_TRUNC('month', NOW()) + INTERVAL '1 month')
+WHERE is_pro = TRUE AND premium_reset_date IS NULL;
 
 -- Create index for faster lookups
 CREATE INDEX IF NOT EXISTS idx_user_usage_is_pro ON user_usage(is_pro);

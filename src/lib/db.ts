@@ -8,11 +8,15 @@ export interface DocBlock {
   content: string;
 }
 
+export type DocumentType = 'visualization' | 'ai_native';
+
 export interface Document {
   id: string;
   user_id: string;
   title: string;
   blocks: DocBlock[];
+  document_type: DocumentType;
+  visualization_result?: any; // Store the last visualization result
   created_at: string;
   updated_at: string;
 }
@@ -43,23 +47,33 @@ export async function getDocument(docId: string, userId: string): Promise<Docume
 }
 
 // Create new doc
-export async function createDocument(userId: string, title = 'Untitled'): Promise<Document> {
+export async function createDocument(userId: string, title = 'Untitled', documentType: DocumentType = 'visualization'): Promise<Document> {
   const { data, error } = await supabase
     .from('documents')
     .insert({ 
       user_id: userId, 
       title,
+      document_type: documentType,
       blocks: [{ id: '1', type: 'text', content: '' }]
     })
     .select()
     .single()
 
   if (error) {
-    console.error("Supabase createDocument error:", error);
+    console.error("Supabase createDocument error:", {
+      message: error.message,
+      code: error.code,
+      details: error.details,
+      hint: error.hint
+    });
     if (error.code === '42P01') {
       throw new Error("The 'documents' table does not exist in your Supabase database. Please create it first.");
     }
-    throw error;
+    if (error.code === '23514') {
+      // Check constraint violation - likely document_type not in allowed values
+      throw new Error(`Invalid document type. Allowed values: visualization, ai_native, canvas. Error: ${error.message}`);
+    }
+    throw new Error(error.message || "Failed to create document");
   }
   return data
 }
@@ -91,6 +105,10 @@ export interface UserUsage {
   user_id: string;
   focus_usage: Record<string, number>; // { fact_check: 2, synonyms: 1, chat: 3, ... }
   is_pro: boolean; // Pro subscription status
+  premium_prompts_used: number; // Number of premium model prompts used this month
+  premium_prompts_limit: number; // Monthly limit for premium prompts (default: 150)
+  premium_reset_date: string; // Date when premium prompts reset (monthly)
+  visualizations_used: number; // Number of visualizations used (free users get 2)
   updated_at: string;
 }
 
@@ -104,8 +122,13 @@ export async function getUserUsage(userId: string): Promise<UserUsage | null> {
 
   if (error) {
     if (error.code === 'PGRST116') {
-      // No row found - create default
-      return null
+      // No row found - return null, let updateUserUsage create it
+      return null;
+    }
+    // For other errors (table doesn't exist, RLS issues), log and return null
+    if (error.code === '42P01' || error.code === '42501') {
+      console.warn("User usage table not accessible:", error.message);
+      return null;
     }
     console.error("Get user usage error:", error);
     return null
@@ -114,15 +137,50 @@ export async function getUserUsage(userId: string): Promise<UserUsage | null> {
 }
 
 // Update user usage
-export async function updateUserUsage(userId: string, usage: Record<string, number>): Promise<void> {
+export async function updateUserUsage(userId: string, usage: Record<string, number>, premiumPromptsUsed?: number, visualizationsUsed?: number): Promise<void> {
   try {
+    // First, ensure the user_usage row exists
+    const existing = await getUserUsage(userId);
+    
+    const updateData: any = {
+      user_id: userId,
+      focus_usage: usage,
+      updated_at: new Date().toISOString()
+    };
+    
+    if (premiumPromptsUsed !== undefined) {
+      updateData.premium_prompts_used = premiumPromptsUsed;
+    }
+    
+    if (visualizationsUsed !== undefined) {
+      updateData.visualizations_used = visualizationsUsed;
+    }
+    
+    // Preserve existing values if not provided
+    if (existing) {
+      if (updateData.is_pro === undefined) {
+        updateData.is_pro = existing.is_pro || false;
+      }
+      if (updateData.premium_prompts_limit === undefined) {
+        updateData.premium_prompts_limit = existing.premium_prompts_limit || 150;
+      }
+      if (updateData.premium_reset_date === undefined && existing.premium_reset_date) {
+        updateData.premium_reset_date = existing.premium_reset_date;
+      }
+      if (updateData.visualizations_used === undefined) {
+        updateData.visualizations_used = existing.visualizations_used || 0;
+      }
+    } else {
+      // Set defaults for new row
+      updateData.is_pro = false;
+      updateData.premium_prompts_limit = 150;
+      updateData.premium_prompts_used = premiumPromptsUsed || 0;
+      updateData.visualizations_used = visualizationsUsed || 0;
+    }
+    
     const { error } = await supabase
       .from('user_usage')
-      .upsert({
-        user_id: userId,
-        focus_usage: usage,
-        updated_at: new Date().toISOString()
-      }, {
+      .upsert(updateData, {
         onConflict: 'user_id'
       })
 

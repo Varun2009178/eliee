@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowLeft, Check, Sparkles } from "lucide-react";
+import { ArrowLeft, Check, X, FileText, Sparkles, Zap, Brain } from "lucide-react";
 import { useSession } from "@/lib/auth-client";
 
 export default function PricingPage() {
@@ -35,9 +35,27 @@ export default function PricingPage() {
     }
   };
 
+  const freeFeatures = [
+    { text: "3 documents", icon: FileText, included: true },
+    { text: "Unlimited visualizations", icon: Sparkles, included: true },
+    { text: "Basic AI (free models)", icon: Zap, included: true },
+    { text: "Limited AI actions (3/day)", icon: Brain, included: true },
+    { text: "Export to PDF", icon: Check, included: true },
+  ];
+
+  const proFeatures = [
+    { text: "Unlimited documents", icon: FileText, included: true, highlight: true },
+    { text: "Unlimited visualizations", icon: Sparkles, included: true },
+    { text: "150 premium AI prompts/mo", icon: Zap, included: true, highlight: true },
+    { text: "Claude & GPT-4 responses", icon: Brain, included: true, highlight: true },
+    { text: "Unlimited free AI after limit", icon: Check, included: true },
+    { text: "Graph-aware AI actions", icon: Check, included: true },
+    { text: "Priority support", icon: Check, included: true },
+  ];
+
   return (
     <div className="min-h-screen bg-[#f5f3ef]">
-      <nav className="h-14 flex items-center justify-between px-4 md:px-6 sticky top-0 bg-[#f5f3ef]/80 backdrop-blur-md border-b border-black/[0.04]">
+      <nav className="h-14 flex items-center justify-between px-4 md:px-6 sticky top-0 bg-[#f5f3ef]/80 backdrop-blur-md border-b border-black/[0.04] z-10">
         <a href="/" className="flex items-center gap-2">
           <img src="/eliee_logo.jpg" alt="Logo" className="w-6 h-6 rounded-md" />
           <span className="font-medium text-black/80 text-sm tracking-tight">Eliee</span>
@@ -48,91 +66,87 @@ export default function PricingPage() {
         </a>
       </nav>
 
-      <main className="max-w-3xl mx-auto px-4 md:px-6 py-16 md:py-24">
-        <div className="text-center mb-16">
-          <h1 
-            className="text-4xl md:text-5xl font-medium text-black tracking-tight mb-4" 
-            style={{ fontFamily: 'Georgia, serif', fontStyle: 'italic' }}
+      <main className="max-w-3xl mx-auto px-4 md:px-6 py-12 md:py-16">
+        <div className="text-center mb-12">
+          <h1
+            className="text-3xl md:text-4xl text-black/90 mb-4"
+            style={{ fontFamily: "Georgia, 'Times New Roman', serif", fontStyle: "italic" }}
           >
-            Simple pricing
+            Think better, write clearer
           </h1>
-          <p className="text-lg text-black/40 max-w-md mx-auto leading-relaxed">
-            Start free, upgrade when you're ready.
+          <p className="text-base text-black/50 max-w-md mx-auto">
+            Start free with 3 documents. Upgrade for unlimited docs and premium AI.
           </p>
         </div>
 
-        <div className="grid md:grid-cols-2 gap-8 max-w-2xl mx-auto">
-          {/* Free Plan */}
-          <div className="bg-white rounded-3xl border border-black/[0.06] p-8 flex flex-col">
-            <div className="mb-8">
-              <h2 className="text-xl font-semibold text-black mb-2">Free</h2>
-              <p className="text-sm text-black/40">Perfect for getting started</p>
+        <div className="grid md:grid-cols-2 gap-6">
+          {/* Free */}
+          <div className="bg-white rounded-2xl border border-black/[0.06] p-8 shadow-sm">
+            <div className="mb-6">
+              <h2 className="text-xl font-semibold text-black/80">Free</h2>
+              <p className="text-sm text-black/40 mt-1">Perfect for trying Eliee</p>
             </div>
-            
+
             <div className="mb-8">
-              <span className="text-5xl font-bold text-black">$0</span>
-              <span className="text-black/40 ml-1">/month</span>
+              <span className="text-4xl font-bold text-black">$0</span>
+              <span className="text-black/40 text-base ml-1">/forever</span>
             </div>
-            
-            <ul className="space-y-4 mb-10 flex-grow">
-              {[
-                "3 documents",
-                "5 visualizations per day",
-                "Basic AI analysis",
-                "PDF export"
-              ].map((feature, i) => (
-                <li key={i} className="flex items-start gap-3 text-[15px] text-black/70">
-                  <Check size={18} className="text-black/30 mt-0.5 flex-shrink-0" />
-                  <span>{feature}</span>
+
+            <ul className="space-y-4 mb-8">
+              {freeFeatures.map((feature, i) => (
+                <li key={i} className="flex items-center gap-3 text-sm text-black/60">
+                  <div className="w-5 h-5 rounded-full bg-black/5 flex items-center justify-center flex-shrink-0">
+                    <feature.icon size={12} className="text-black/40" />
+                  </div>
+                  {feature.text}
                 </li>
               ))}
             </ul>
-            
-            <a 
-              href="/auth" 
-              className="w-full py-4 rounded-2xl border border-black/10 text-black/70 font-semibold text-center hover:bg-black/[0.02] hover:border-black/20 transition-all"
+
+            <a
+              href="/auth"
+              className="block w-full py-3 rounded-xl border border-black/10 text-black/60 font-medium text-sm text-center hover:bg-black/[0.02] transition-colors"
             >
               Get started free
             </a>
           </div>
 
-          {/* Pro Plan */}
-          <div className="relative">
-            <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-4 py-1.5 bg-black text-white text-xs font-semibold rounded-full flex items-center gap-1.5">
-              <Sparkles size={12} />
-              Recommended
-            </div>
-            <div className="bg-black text-white rounded-3xl p-8 flex flex-col h-full">
-              <div className="mb-8">
-                <h2 className="text-xl font-semibold mb-2">Pro</h2>
-                <p className="text-sm text-white/50">For serious thinkers</p>
+          {/* Pro */}
+          <div className="bg-gradient-to-br from-black to-black/90 rounded-2xl p-8 shadow-xl relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-violet-500/20 to-transparent rounded-full blur-2xl" />
+            <div className="absolute bottom-0 left-0 w-24 h-24 bg-gradient-to-tr from-emerald-500/10 to-transparent rounded-full blur-xl" />
+
+            <div className="relative">
+              <div className="flex items-center gap-2 mb-6">
+                <h2 className="text-xl font-semibold text-white">Pro</h2>
+                <span className="px-2 py-0.5 bg-gradient-to-r from-violet-500 to-purple-500 text-white text-[10px] font-bold rounded-full uppercase tracking-wider">
+                  Popular
+                </span>
               </div>
-              
+
               <div className="mb-8">
-                <span className="text-5xl font-bold">$8.99</span>
-                <span className="text-white/50 ml-1">/month</span>
+                <span className="text-4xl font-bold text-white">$9.99</span>
+                <span className="text-white/50 text-base ml-1">/month</span>
               </div>
-              
-              <ul className="space-y-4 mb-10 flex-grow">
-                {[
-                  "Unlimited documents",
-                  "Unlimited visualizations",
-                  "Advanced AI analysis",
-                  "Gap detection & suggestions",
-                  "Export to PDF, PNG, SVG",
-                  "Priority support"
-                ].map((feature, i) => (
-                  <li key={i} className="flex items-start gap-3 text-[15px] text-white/80">
-                    <Check size={18} className="text-emerald-400 mt-0.5 flex-shrink-0" />
-                    <span>{feature}</span>
+
+              <ul className="space-y-4 mb-8">
+                {proFeatures.map((feature, i) => (
+                  <li key={i} className={`flex items-center gap-3 text-sm ${feature.highlight ? 'text-white' : 'text-white/70'}`}>
+                    <div className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 ${feature.highlight ? 'bg-gradient-to-br from-violet-500 to-purple-500' : 'bg-white/10'}`}>
+                      <Check size={12} className="text-white" />
+                    </div>
+                    {feature.text}
+                    {feature.highlight && (
+                      <span className="ml-auto text-[10px] text-violet-400 font-medium">NEW</span>
+                    )}
                   </li>
                 ))}
               </ul>
-              
-              <button 
+
+              <button
                 onClick={handleUpgrade}
                 disabled={isLoading}
-                className="w-full py-4 rounded-2xl bg-white text-black font-semibold text-center hover:bg-white/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                className="w-full py-3 rounded-xl bg-white text-black font-semibold text-sm hover:bg-white/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
               >
                 {isLoading ? (
                   <>
@@ -140,55 +154,94 @@ export default function PricingPage() {
                     Processing...
                   </>
                 ) : (
-                  "Upgrade to Pro"
+                  <>
+                    <Sparkles size={14} />
+                    Upgrade to Pro
+                  </>
                 )}
               </button>
-              
-              <p className="text-center text-xs text-white/40 mt-4">
-                14-day money-back guarantee
+
+              <p className="text-xs text-white/30 text-center mt-3">
+                Cancel anytime • 14-day money-back guarantee
               </p>
             </div>
           </div>
         </div>
 
-        {/* FAQ Section */}
-        <div className="mt-24">
-          <h2 className="text-2xl font-semibold text-black text-center mb-12">Questions?</h2>
-          <div className="grid md:grid-cols-2 gap-6 max-w-2xl mx-auto">
-            <div className="bg-white rounded-2xl border border-black/[0.06] p-6">
-              <h3 className="font-semibold text-black mb-2">Can I cancel anytime?</h3>
-              <p className="text-sm text-black/50 leading-relaxed">
-                Yes, cancel with one click. No questions asked. Your data stays safe.
-              </p>
+        {/* Comparison */}
+        <div className="mt-16">
+          <h2 className="text-lg font-semibold text-black/80 mb-6 text-center">Compare plans</h2>
+          <div className="bg-white rounded-2xl border border-black/[0.06] overflow-hidden">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-black/[0.06]">
+                  <th className="text-left p-4 text-sm font-medium text-black/40">Feature</th>
+                  <th className="text-center p-4 text-sm font-medium text-black/60">Free</th>
+                  <th className="text-center p-4 text-sm font-medium text-black/80 bg-black/[0.02]">Pro</th>
+                </tr>
+              </thead>
+              <tbody className="text-sm">
+                <tr className="border-b border-black/[0.04]">
+                  <td className="p-4 text-black/60">Documents</td>
+                  <td className="p-4 text-center text-black/50">3</td>
+                  <td className="p-4 text-center font-medium text-black/80 bg-black/[0.02]">Unlimited</td>
+                </tr>
+                <tr className="border-b border-black/[0.04]">
+                  <td className="p-4 text-black/60">Visualizations</td>
+                  <td className="p-4 text-center text-black/50">Unlimited</td>
+                  <td className="p-4 text-center font-medium text-black/80 bg-black/[0.02]">Unlimited</td>
+                </tr>
+                <tr className="border-b border-black/[0.04]">
+                  <td className="p-4 text-black/60">AI Model</td>
+                  <td className="p-4 text-center text-black/50">Free models</td>
+                  <td className="p-4 text-center font-medium text-black/80 bg-black/[0.02]">Claude & GPT-4</td>
+                </tr>
+                <tr className="border-b border-black/[0.04]">
+                  <td className="p-4 text-black/60">AI Actions/day</td>
+                  <td className="p-4 text-center text-black/50">3</td>
+                  <td className="p-4 text-center font-medium text-black/80 bg-black/[0.02]">150/month + unlimited free</td>
+                </tr>
+                <tr className="border-b border-black/[0.04]">
+                  <td className="p-4 text-black/60">Graph-aware AI</td>
+                  <td className="p-4 text-center"><X size={14} className="inline text-black/20" /></td>
+                  <td className="p-4 text-center bg-black/[0.02]"><Check size={14} className="inline text-emerald-500" /></td>
+                </tr>
+                <tr>
+                  <td className="p-4 text-black/60">Priority support</td>
+                  <td className="p-4 text-center"><X size={14} className="inline text-black/20" /></td>
+                  <td className="p-4 text-center bg-black/[0.02]"><Check size={14} className="inline text-emerald-500" /></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* FAQ */}
+        <div className="mt-16">
+          <h2 className="text-lg font-semibold text-black/80 mb-6 text-center">Questions</h2>
+          <div className="space-y-3">
+            <div className="bg-white rounded-xl border border-black/[0.06] p-5 shadow-sm">
+              <h3 className="text-sm text-black/70 font-medium mb-2">What happens when I hit the document limit?</h3>
+              <p className="text-sm text-black/40">You can still view and edit your existing 3 documents, but you'll need Pro to create more. Upgrade anytime to unlock unlimited documents.</p>
             </div>
-            <div className="bg-white rounded-2xl border border-black/[0.06] p-6">
-              <h3 className="font-semibold text-black mb-2">What payment methods?</h3>
-              <p className="text-sm text-black/50 leading-relaxed">
-                All major credit cards via Stripe. Secure and encrypted.
-              </p>
+            <div className="bg-white rounded-xl border border-black/[0.06] p-5 shadow-sm">
+              <h3 className="text-sm text-black/70 font-medium mb-2">What's the difference between free and premium AI?</h3>
+              <p className="text-sm text-black/40">Free uses open-source models (Gemma, Mistral). Pro gives you 150 prompts/month with Claude and GPT-4 for significantly better responses, then unlimited free model access.</p>
             </div>
-            <div className="bg-white rounded-2xl border border-black/[0.06] p-6">
-              <h3 className="font-semibold text-black mb-2">What if I need help?</h3>
-              <p className="text-sm text-black/50 leading-relaxed">
-                Pro users get priority email support. We typically respond within hours.
-              </p>
-            </div>
-            <div className="bg-white rounded-2xl border border-black/[0.06] p-6">
-              <h3 className="font-semibold text-black mb-2">Is there a refund policy?</h3>
-              <p className="text-sm text-black/50 leading-relaxed">
-                14-day money-back guarantee if Eliee doesn't work for you.
-              </p>
+            <div className="bg-white rounded-xl border border-black/[0.06] p-5 shadow-sm">
+              <h3 className="text-sm text-black/70 font-medium mb-2">Can I cancel anytime?</h3>
+              <p className="text-sm text-black/40">Yes, one click in settings. You'll keep Pro until the end of your billing period. 14-day money-back guarantee, no questions asked.</p>
             </div>
           </div>
         </div>
       </main>
 
-      <footer className="py-8 px-4 md:px-6 border-t border-black/[0.04]">
+      <footer className="py-8 px-4 border-t border-black/[0.04] bg-[#e8e4dc]">
         <div className="max-w-3xl mx-auto flex items-center justify-between text-xs text-black/30">
           <p>© 2026 Eliee</p>
           <div className="flex gap-4">
-            <a href="/terms" className="hover:text-black transition-colors">Terms</a>
-            <a href="/privacy" className="hover:text-black transition-colors">Privacy</a>
+            <a href="/terms" className="hover:text-black/50 transition-colors">Terms</a>
+            <a href="/privacy" className="hover:text-black/50 transition-colors">Privacy</a>
           </div>
         </div>
       </footer>

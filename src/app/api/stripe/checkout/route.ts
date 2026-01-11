@@ -25,10 +25,10 @@ export async function POST(req: NextRequest) {
       payment_method_types: ["card"],
       line_items: [
         {
-          price_data: {
-            currency: "usd",
-            product: "prod_Tl2CyUGUglyQqG", // Your Stripe product ID
-            unit_amount: 899, // $8.99 in cents
+            price_data: {
+              currency: "usd",
+              product: "prod_Tl2CyUGUglyQqG", // Your Stripe product ID
+              unit_amount: 999, // $9.99 in cents
             recurring: {
               interval: "month",
             },
