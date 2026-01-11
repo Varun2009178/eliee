@@ -19,10 +19,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "User ID required" }, { status: 400 });
     }
 
+    // Get the actual URL from the request
+    const host = req.headers.get("host") || req.headers.get("x-forwarded-host");
+    const protocol = req.headers.get("x-forwarded-proto") || (host?.includes("localhost") ? "http" : "https");
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || (host ? `${protocol}://${host}` : "http://localhost:3000");
+
     // Create Stripe checkout session
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
       payment_method_types: ["card"],
+      allow_promotion_codes: true, // Enable coupon/promo code entry
       line_items: [
         {
             price_data: {
@@ -36,8 +42,8 @@ export async function POST(req: NextRequest) {
           quantity: 1,
         },
       ],
-      success_url: `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/app?upgraded=true`,
-      cancel_url: `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/pricing`,
+      success_url: `${baseUrl}/app?upgraded=true`,
+      cancel_url: `${baseUrl}/pricing`,
       metadata: {
         userId,
       },

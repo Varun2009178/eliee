@@ -1037,13 +1037,7 @@ export default function AppPage() {
 
       setFocusChat(prev => {
         const updated: { role: "user" | "assistant"; content: string }[] = [...prev, { role: "assistant" as const, content: formattedResult }];
-        // Add upgrade prompt after assistant response (only for free users)
-        if (!isPro) {
-          updated.push({
-            role: "assistant" as const,
-            content: "💡 For more high-quality responses, upgrade to Pro and use the latest models from Claude, ChatGPT, and more. Get 150 premium prompts/month plus unlimited free model access."
-          });
-        }
+        // Upgrade prompt is shown as a card UI element, not as a chat message
         // Scroll chat to bottom after state update
         setTimeout(() => {
           if (focusChatRef.current) {
@@ -2034,8 +2028,8 @@ export default function AppPage() {
                           <div className="text-[13px] text-black/70 leading-relaxed whitespace-pre-wrap">
                             {msg.content}
                           </div>
-                          {/* Upgrade prompt for free users - show after every assistant response (except upgrade prompt messages) */}
-                          {!isPro && msg.role === "assistant" && !msg.content.includes("💡 For more high-quality responses") && (
+                          {/* Upgrade prompt for free users - show after every assistant response */}
+                          {!isPro && msg.role === "assistant" && (
                             <div className="mt-3 p-3 rounded-lg bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200/50">
                               <div className="flex items-start gap-2.5">
                                 <Crown size={14} className="text-amber-600 mt-0.5 flex-shrink-0" />
