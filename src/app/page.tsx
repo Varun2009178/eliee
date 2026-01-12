@@ -32,7 +32,7 @@ function LandingPage() {
         </a>
         <div className="flex items-center gap-3 md:gap-6">
           <a href="#features" className="text-sm text-black/50 hover:text-black transition-colors hidden md:block">Features</a>
-          <a href="#how" className="text-sm text-black/50 hover:text-black transition-colors hidden md:block">How it works</a>
+          <a href="#how" className="text-sm text-black/50 hover:text-black transition-colors hidden md:block">How it Works</a>
           
           {session ? (
             <a 
@@ -605,7 +605,7 @@ function LandingPage() {
               <div>
                 <p className="font-medium text-black/70 mb-3">Resources</p>
                 <div className="space-y-2 text-black/40">
-                  <a href="#how" className="block hover:text-black transition-colors">How it works</a>
+                  <a href="#how" className="block hover:text-black transition-colors">How it Works</a>
                   <a href="/auth" className="block hover:text-black transition-colors">Sign in</a>
                     </div>
                        </div>
