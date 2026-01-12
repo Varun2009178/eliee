@@ -1,13 +1,16 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { signIn, signUp, useSession } from "@/lib/auth-client";
 import { motion } from "framer-motion";
 import { ArrowLeft, Loader2, Mail, Lock, User } from "lucide-react";
 import Link from "next/link";
 
-export default function AuthPage() {
+// Force dynamic rendering to prevent prerendering errors with useSearchParams
+export const dynamic = 'force-dynamic';
+
+function AuthForm() {
   const searchParams = useSearchParams();
   const [isSignUp, setIsSignUp] = useState(searchParams.get("mode") === "signup");
   const [email, setEmail] = useState("");
@@ -218,3 +221,17 @@ export default function AuthPage() {
   );
 }
 
+export default function AuthPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-[#f5f3ef] flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-6 h-6 border-2 border-black/10 border-t-black/40 rounded-full animate-spin" />
+          <p className="text-sm text-black/40">Loading...</p>
+        </div>
+      </div>
+    }>
+      <AuthForm />
+    </Suspense>
+  );
+}
