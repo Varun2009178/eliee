@@ -7,10 +7,8 @@ export const metadata: Metadata = {
   title: "Eliee",
   description: "Write first. Structure later. Think clearly with AI that shows you the logic.",
   icons: {
-    icon: [
-      { url: "/eliee_logo.jpg", type: "image/jpeg" },
-    ],
-    apple: "/eliee_logo.jpg",
+    icon: "/eliee_logo_tab.png",
+    apple: "/eliee_logo_tab.png",
   },
   openGraph: {
     title: "Eliee",
