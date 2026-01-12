@@ -14,8 +14,8 @@ export default function GetStartedPage() {
         // If already logged in, go to app
         router.push("/app");
       } else {
-        // If not logged in, go to auth
-        router.push("/auth");
+        // If not logged in, go to auth in sign-up mode
+        router.push("/auth?mode=signup");
       }
     }
   }, [session, isPending, router]);

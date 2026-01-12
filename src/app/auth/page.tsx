@@ -1,14 +1,15 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { signIn, signUp, useSession } from "@/lib/auth-client";
 import { motion } from "framer-motion";
 import { ArrowLeft, Loader2, Mail, Lock, User } from "lucide-react";
 import Link from "next/link";
 
 export default function AuthPage() {
-  const [isSignUp, setIsSignUp] = useState(false);
+  const searchParams = useSearchParams();
+  const [isSignUp, setIsSignUp] = useState(searchParams.get("mode") === "signup");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");

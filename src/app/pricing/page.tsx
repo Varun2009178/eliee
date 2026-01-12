@@ -104,7 +104,7 @@ export default function PricingPage() {
             </ul>
 
             <a
-              href="/auth"
+              href="/auth?mode=signup"
               className="block w-full py-3 rounded-xl border border-black/10 text-black/60 font-medium text-sm text-center hover:bg-black/[0.02] transition-colors"
             >
               Get started free
