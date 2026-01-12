@@ -99,7 +99,7 @@ export default function TermsPage() {
           <section>
             <h2 className="text-lg font-semibold text-black mb-3">11. Contact</h2>
             <p className="leading-relaxed">
-              For questions about these Terms, please contact us at <a href="mailto:legal@eliee.app" className="text-black underline">legal@eliee.app</a>.
+              For questions about these Terms, please contact us at <a href="mailto:varun@teyra.app" className="text-black underline">varun@teyra.app</a>.
             </p>
           </section>
         </div>

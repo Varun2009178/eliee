@@ -619,7 +619,7 @@ function LandingPage() {
               <div>
                 <p className="font-medium text-black/70 mb-3">Contact</p>
                 <div className="space-y-2 text-black/40">
-                  <a href="mailto:hello@eliee.app" className="block hover:text-black transition-colors">hello@eliee.app</a>
+                  <a href="mailto:varun@teyra.app" className="block hover:text-black transition-colors">varun@teyra.app</a>
                 </div>
         </div>
             </div>
