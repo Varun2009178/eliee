@@ -24,6 +24,9 @@ export async function POST(req: NextRequest) {
     const protocol = req.headers.get("x-forwarded-proto") || (host?.includes("localhost") ? "http" : "https");
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || (host ? `${protocol}://${host}` : "http://localhost:3000");
 
+    // Get product ID from environment variable (different for dev/prod)
+    const productId = process.env.STRIPE_PRODUCT_ID || "prod_Tlp95Mxwxwiwu7"; // Default to dev product
+
     // Create Stripe checkout session
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
@@ -33,7 +36,7 @@ export async function POST(req: NextRequest) {
         {
             price_data: {
               currency: "usd",
-              product: "prod_Tl2CyUGUglyQqG", // Your Stripe product ID
+              product: productId,
               unit_amount: 999, // $9.99 in cents
             recurring: {
               interval: "month",

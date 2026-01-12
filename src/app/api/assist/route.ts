@@ -87,7 +87,7 @@ ${text}`;
     const graphContext = graphStructure?.nodes
       ? `\n\nArgument Graph:\n${graphStructure.nodes.map(n => `- ${n.label} [${n.type}]`).join('\n')}`
       : '';
-    return `Find creative similes, analogies, or examples that connect this idea to concepts mentioned earlier in the document. Make connections that illuminate the reasoning.\n\nDocument Context: ${context || "N/A"}${graphContext}\n\nText to connect: "${text}"`;
+    return `Find synonyms and alternative words for key terms in this text. Provide 5-7 synonyms for important words that could be replaced to improve clarity, vary language, or adjust formality. Focus on words that carry significant meaning in the context.\n\nDocument Context: ${context || "N/A"}${graphContext}\n\nText: "${text}"`;
   },
   decompose_claims: (text, context, graphStructure) => {
     const existingNodes = graphStructure?.nodes
@@ -124,14 +124,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "API key missing" }, { status: 500 });
     }
 
-    // Check premium prompt limits for Pro users
+    // Premium prompts ONLY count for "chat" action (talking to assistant)
+    // All other actions (verify, paraphrase, synonyms, etc.) are unlimited for Pro users and use free models
     let usePremiumModel = false;
     let premiumPromptsUsed = 0;
     let userUsage = null;
     
     if (userId) {
       userUsage = await getUserUsage(userId);
-      if (userUsage?.is_pro) {
+      // Only check premium limits for "chat" action
+      if (userUsage?.is_pro && action === "chat") {
         // Check if we need to reset monthly counter
         const now = new Date();
         const resetDate = userUsage.premium_reset_date ? new Date(userUsage.premium_reset_date) : now;
@@ -147,6 +149,7 @@ export async function POST(req: NextRequest) {
         const limit = userUsage.premium_prompts_limit || PREMIUM_PROMPTS_LIMIT;
         usePremiumModel = premiumPromptsUsed < limit;
       }
+      // For Pro users, all non-chat actions are unlimited and use free models
     }
 
     // Select model based on premium availability
@@ -194,9 +197,9 @@ Be precise, substantive, and focused on improving the clarity and logical struct
 
     const result = data.choices?.[0]?.message?.content || "";
     
-    // Update premium prompt usage if premium model was used
+    // Update premium prompt usage ONLY for "chat" action when premium model was used
     let premiumPromptsRemaining = undefined;
-    if (userId && userUsage?.is_pro) {
+    if (userId && userUsage?.is_pro && action === "chat") {
       if (usePremiumModel) {
         const newCount = premiumPromptsUsed + 1;
         await updateUserUsage(userId, userUsage.focus_usage || {}, newCount);

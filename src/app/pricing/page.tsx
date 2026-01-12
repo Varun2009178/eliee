@@ -39,17 +39,17 @@ export default function PricingPage() {
     { text: "3 documents", icon: FileText, included: true },
     { text: "Unlimited visualizations", icon: Sparkles, included: true },
     { text: "Basic AI (free models)", icon: Zap, included: true },
-    { text: "Limited AI actions (3/day)", icon: Brain, included: true },
+    { text: "AI actions (verify, synonyms, etc.)", icon: Brain, included: true },
     { text: "Export to PDF", icon: Check, included: true },
   ];
 
   const proFeatures = [
     { text: "Unlimited documents", icon: FileText, included: true, highlight: true },
     { text: "Unlimited visualizations", icon: Sparkles, included: true },
-    { text: "150 premium AI prompts/mo", icon: Zap, included: true, highlight: true },
-    { text: "Claude & GPT-4 responses", icon: Brain, included: true, highlight: true },
-    { text: "Unlimited free AI after limit", icon: Check, included: true },
-    { text: "Graph-aware AI actions", icon: Check, included: true },
+    { text: "150 premium chat prompts/mo", icon: Zap, included: true, highlight: true },
+    { text: "Claude & GPT-4 for chat", icon: Brain, included: true, highlight: true },
+    { text: "Unlimited AI actions", icon: Check, included: true, description: "Verify, synonyms, expand, simplify - all free" },
+    { text: "Graph-aware AI", icon: Check, included: true },
     { text: "Priority support", icon: Check, included: true },
   ];
 
@@ -192,14 +192,14 @@ export default function PricingPage() {
                   <td className="p-4 text-center font-medium text-black/80 bg-black/[0.02]">Unlimited</td>
                 </tr>
                 <tr className="border-b border-black/[0.04]">
-                  <td className="p-4 text-black/60">AI Model</td>
+                  <td className="p-4 text-black/60">Chat AI Model</td>
                   <td className="p-4 text-center text-black/50">Free models</td>
-                  <td className="p-4 text-center font-medium text-black/80 bg-black/[0.02]">Claude & GPT-4</td>
+                  <td className="p-4 text-center font-medium text-black/80 bg-black/[0.02]">150 Claude/GPT-4, then free</td>
                 </tr>
                 <tr className="border-b border-black/[0.04]">
-                  <td className="p-4 text-black/60">AI Actions/day</td>
-                  <td className="p-4 text-center text-black/50">3</td>
-                  <td className="p-4 text-center font-medium text-black/80 bg-black/[0.02]">150/month + unlimited free</td>
+                  <td className="p-4 text-black/60">AI Actions (verify, synonyms, etc.)</td>
+                  <td className="p-4 text-center text-black/50">Unlimited (free models)</td>
+                  <td className="p-4 text-center font-medium text-black/80 bg-black/[0.02]">Unlimited (free models)</td>
                 </tr>
                 <tr className="border-b border-black/[0.04]">
                   <td className="p-4 text-black/60">Graph-aware AI</td>
@@ -226,7 +226,7 @@ export default function PricingPage() {
             </div>
             <div className="bg-white rounded-xl border border-black/[0.06] p-5 shadow-sm">
               <h3 className="text-sm text-black/70 font-medium mb-2">What's the difference between free and premium AI?</h3>
-              <p className="text-sm text-black/40">Free uses open-source models (Gemma, Mistral). Pro gives you 150 prompts/month with Claude and GPT-4 for significantly better responses, then unlimited free model access.</p>
+              <p className="text-sm text-black/40">Pro gives you 150 premium chat prompts/month with Claude and GPT-4. After that, chat continues with free models. All other AI actions (verify, synonyms, expand, simplify) are always unlimited and use free models for everyone. Your 150 premium chat prompts reset monthly.</p>
             </div>
             <div className="bg-white rounded-xl border border-black/[0.06] p-5 shadow-sm">
               <h3 className="text-sm text-black/70 font-medium mb-2">Can I cancel anytime?</h3>

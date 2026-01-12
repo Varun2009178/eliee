@@ -1114,7 +1114,7 @@ export default function AppPage() {
   const focusActionButtons = useMemo(() => [
     { action: "fact_check", label: "Verify" },
     { action: "paraphrase_preserve", label: "Paraphrase" },
-    { action: "find_similes", label: "Find Similes" },
+    { action: "find_similes", label: "Find Synonyms" },
     { action: "decompose_claims", label: "Extract Claims" },
     { action: "counterargument", label: "Counter" },
     { action: "expand", label: "Expand" },
@@ -2495,7 +2495,7 @@ export default function AppPage() {
         )}
       </AnimatePresence>
 
-      {/* Pro Upgrade Modal - Cursor-style minimal */}
+      {/* Pro Upgrade Modal - Warm theme matching landing page */}
       <AnimatePresence>
         {showProModal && (
           <>
@@ -2503,57 +2503,75 @@ export default function AppPage() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black/50 z-[200]"
+              className="fixed inset-0 bg-black/30 backdrop-blur-sm z-[200]"
               onClick={() => setShowProModal(false)}
             />
             <motion.div
-              initial={{ opacity: 0, y: 4 }}
+              initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 4 }}
-              transition={{ duration: 0.15 }}
+              exit={{ opacity: 0, y: 8 }}
+              transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
               className="fixed inset-0 z-[201] flex items-center justify-center p-6 pointer-events-none"
             >
-              <div className="bg-[#1e1e1e] rounded-lg shadow-2xl w-[360px] pointer-events-auto border border-white/10 overflow-hidden">
+              <div className="bg-[#f5f3ef] rounded-2xl shadow-2xl shadow-black/10 w-[380px] pointer-events-auto border border-black/[0.08] overflow-hidden">
                 {/* Header */}
-                <div className="px-5 py-4 border-b border-white/[0.06] flex items-center justify-between">
+                <div className="px-6 py-5 border-b border-black/[0.06] flex items-center justify-between">
                   <div>
-                    <p className="text-[14px] font-medium text-white/90">Upgrade to Pro</p>
-                    <p className="text-[12px] text-white/40 mt-0.5">Get more AI access</p>
+                    <h3 className="text-lg text-black/90" style={{ fontFamily: "Georgia, serif", fontStyle: "italic" }}>Upgrade to Pro</h3>
+                    <p className="text-[13px] text-black/40 mt-0.5">Unlock premium AI features</p>
                   </div>
                   <button
                     onClick={() => setShowProModal(false)}
-                    className="p-1.5 hover:bg-white/[0.06] rounded transition-colors"
+                    className="p-1.5 hover:bg-black/[0.04] rounded-lg transition-colors"
                   >
-                    <X size={14} className="text-white/40" />
+                    <X size={16} className="text-black/30" />
                   </button>
                 </div>
 
                 {/* Content */}
-                <div className="px-5 py-4">
-                  <p className="text-[11px] text-white/40 uppercase tracking-wider mb-3">Unlock premium features</p>
-
-                  <div className="space-y-2 mb-5">
-                    <div className="flex items-center gap-2.5 text-[13px] text-white/70">
-                      <Check size={14} className="text-violet-400" />
-                      <span>Unlimited documents</span>
+                <div className="px-6 py-5 bg-white/50">
+                  <div className="space-y-3 mb-6">
+                    <div className="flex items-start gap-3 text-[13px] text-black/70">
+                      <div className="w-5 h-5 rounded-full bg-black flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <Check size={10} className="text-white" />
+                      </div>
+                      <div>
+                        <p className="font-medium text-black/80">Unlimited documents</p>
+                        <p className="text-[11px] text-black/40 mt-0.5">Create as many as you need</p>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2.5 text-[13px] text-white/70">
-                      <Check size={14} className="text-violet-400" />
-                      <span>150 Claude & GPT-4 prompts/month</span>
+                    <div className="flex items-start gap-3 text-[13px] text-black/70">
+                      <div className="w-5 h-5 rounded-full bg-black flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <Check size={10} className="text-white" />
+                      </div>
+                      <div>
+                        <p className="font-medium text-black/80">150 premium chat prompts/month</p>
+                        <p className="text-[11px] text-black/40 mt-0.5">Claude & GPT-4 for conversations</p>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2.5 text-[13px] text-white/70">
-                      <Check size={14} className="text-violet-400" />
-                      <span>Unlimited free model access after limit</span>
+                    <div className="flex items-start gap-3 text-[13px] text-black/70">
+                      <div className="w-5 h-5 rounded-full bg-black flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <Check size={10} className="text-white" />
+                      </div>
+                      <div>
+                        <p className="font-medium text-black/80">Unlimited AI actions</p>
+                        <p className="text-[11px] text-black/40 mt-0.5">Verify, synonyms, expand, simplify - all free</p>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2.5 text-[13px] text-white/70">
-                      <Check size={14} className="text-violet-400" />
-                      <span>Graph-aware AI rewrites</span>
+                    <div className="flex items-start gap-3 text-[13px] text-black/70">
+                      <div className="w-5 h-5 rounded-full bg-black flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <Check size={10} className="text-white" />
+                      </div>
+                      <div>
+                        <p className="font-medium text-black/80">Graph-aware AI</p>
+                        <p className="text-[11px] text-black/40 mt-0.5">AI that understands your reasoning structure</p>
+                      </div>
                     </div>
                   </div>
 
-                  <div className="flex items-baseline gap-1 mb-4">
-                    <span className="text-2xl font-semibold text-white">$9.99</span>
-                    <span className="text-white/40 text-sm">/month</span>
+                  <div className="flex items-baseline gap-1.5 mb-5">
+                    <span className="text-3xl font-semibold text-black/90">$9.99</span>
+                    <span className="text-black/40 text-sm">/month</span>
                   </div>
 
                   <button
@@ -2561,14 +2579,14 @@ export default function AppPage() {
                       setShowProModal(false);
                       router.push("/pricing");
                     }}
-                    className="w-full py-2.5 bg-gradient-to-r from-violet-500 to-purple-500 text-white rounded-md font-semibold text-[13px] hover:from-violet-600 hover:to-purple-600 transition-all"
+                    className="w-full py-3 bg-black text-white rounded-xl font-medium text-sm hover:bg-black/90 transition-all"
                   >
                     Upgrade to Pro
                   </button>
                 </div>
 
-                <div className="px-5 py-3 border-t border-white/[0.06] bg-white/[0.02]">
-                  <p className="text-[11px] text-white/30 text-center">
+                <div className="px-6 py-3 border-t border-black/[0.04] bg-[#ebe7e0]">
+                  <p className="text-[11px] text-black/40 text-center">
                     Cancel anytime. 14-day money-back guarantee.
                   </p>
                 </div>
@@ -2578,7 +2596,7 @@ export default function AppPage() {
         )}
       </AnimatePresence>
 
-      {/* Upgrade Success Modal - Celebratory */}
+      {/* Upgrade Success Modal - Warm celebratory theme */}
       <AnimatePresence>
         {showUpgradeSuccess && (
           <>
@@ -2586,7 +2604,7 @@ export default function AppPage() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[250]"
+              className="fixed inset-0 bg-black/30 backdrop-blur-sm z-[250]"
               onClick={() => setShowUpgradeSuccess(false)}
             />
             <motion.div
@@ -2596,68 +2614,67 @@ export default function AppPage() {
               transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
               className="fixed inset-0 z-[251] flex items-center justify-center p-6 pointer-events-none"
             >
-              <div className="bg-[#1e1e1e] rounded-xl shadow-2xl w-full max-w-[400px] pointer-events-auto border border-white/10 overflow-hidden">
+              <div className="bg-[#f5f3ef] rounded-2xl shadow-2xl shadow-black/10 w-full max-w-[400px] pointer-events-auto border border-black/[0.08] overflow-hidden">
                 {/* Celebration Header */}
-                <div className="relative px-6 py-6 border-b border-white/[0.06] bg-gradient-to-br from-violet-500/10 to-purple-500/10">
-                  <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-emerald-500/20 to-transparent rounded-full blur-2xl" />
+                <div className="relative px-6 py-6 border-b border-black/[0.06] bg-gradient-to-br from-emerald-50 to-green-50">
                   <div className="relative flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-400 to-green-500 flex items-center justify-center shadow-lg shadow-emerald-500/30">
+                    <div className="w-12 h-12 rounded-xl bg-black flex items-center justify-center">
                       <Check size={24} className="text-white" strokeWidth={3} />
                     </div>
                     <div>
-                      <p className="text-lg font-semibold text-white">Welcome to Pro!</p>
-                      <p className="text-sm text-white/50">Payment successful</p>
+                      <h3 className="text-xl text-black/90" style={{ fontFamily: "Georgia, serif", fontStyle: "italic" }}>Welcome to Pro!</h3>
+                      <p className="text-sm text-black/50">Payment successful</p>
                     </div>
                   </div>
                 </div>
 
-                <div className="px-6 py-5">
+                <div className="px-6 py-5 bg-white/50">
                   {/* Features unlocked */}
-                  <p className="text-xs font-medium text-white/40 uppercase tracking-wider mb-3">Now unlocked</p>
+                  <p className="text-[11px] font-medium text-black/40 uppercase tracking-wider mb-4">Now unlocked</p>
                   <div className="space-y-3 mb-5">
-                    <div className="flex items-center gap-3 text-[13px] text-white/80">
-                      <div className="w-5 h-5 rounded-full bg-emerald-500/20 flex items-center justify-center">
-                        <Check size={12} className="text-emerald-400" />
+                    <div className="flex items-center gap-3 text-[13px] text-black/70">
+                      <div className="w-5 h-5 rounded-full bg-black flex items-center justify-center">
+                        <Check size={10} className="text-white" />
                       </div>
                       <span>Unlimited documents</span>
                     </div>
-                    <div className="flex items-center gap-3 text-[13px] text-white/80">
-                      <div className="w-5 h-5 rounded-full bg-emerald-500/20 flex items-center justify-center">
-                        <Check size={12} className="text-emerald-400" />
+                    <div className="flex items-center gap-3 text-[13px] text-black/70">
+                      <div className="w-5 h-5 rounded-full bg-black flex items-center justify-center">
+                        <Check size={10} className="text-white" />
                       </div>
-                      <span>150 Claude & GPT-4 prompts/month</span>
+                      <span>150 premium chat prompts/month</span>
                     </div>
-                    <div className="flex items-center gap-3 text-[13px] text-white/80">
-                      <div className="w-5 h-5 rounded-full bg-emerald-500/20 flex items-center justify-center">
-                        <Check size={12} className="text-emerald-400" />
+                    <div className="flex items-center gap-3 text-[13px] text-black/70">
+                      <div className="w-5 h-5 rounded-full bg-black flex items-center justify-center">
+                        <Check size={10} className="text-white" />
                       </div>
-                      <span>Unlimited free AI after limit</span>
+                      <span>Unlimited AI actions (verify, synonyms, etc.)</span>
                     </div>
-                    <div className="flex items-center gap-3 text-[13px] text-white/80">
-                      <div className="w-5 h-5 rounded-full bg-emerald-500/20 flex items-center justify-center">
-                        <Check size={12} className="text-emerald-400" />
+                    <div className="flex items-center gap-3 text-[13px] text-black/70">
+                      <div className="w-5 h-5 rounded-full bg-black flex items-center justify-center">
+                        <Check size={10} className="text-white" />
                       </div>
-                      <span>Graph-aware AI actions</span>
+                      <span>Graph-aware AI</span>
                     </div>
                   </div>
 
                   {/* Billing info */}
-                  <div className="p-3 rounded-lg bg-white/[0.03] border border-white/[0.06] mb-5">
+                  <div className="p-3 rounded-xl bg-[#ebe7e0] border border-black/[0.04] mb-5">
                     <div className="flex items-center justify-between text-[12px]">
-                      <span className="text-white/40">Next billing date</span>
-                      <span className="text-white/70 font-medium">
+                      <span className="text-black/40">Next billing date</span>
+                      <span className="text-black/70 font-medium">
                         {new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                       </span>
                     </div>
                     <div className="flex items-center justify-between text-[12px] mt-1.5">
-                      <span className="text-white/40">Amount</span>
-                      <span className="text-white/70 font-medium">$9.99/month</span>
+                      <span className="text-black/40">Amount</span>
+                      <span className="text-black/70 font-medium">$9.99/month</span>
                     </div>
                   </div>
 
                   <button
                     onClick={() => setShowUpgradeSuccess(false)}
-                    className="w-full py-3 bg-gradient-to-r from-emerald-500 to-green-500 text-white rounded-lg font-semibold text-sm hover:from-emerald-600 hover:to-green-600 transition-all shadow-lg shadow-emerald-500/20"
+                    className="w-full py-3 bg-black text-white rounded-xl font-medium text-sm hover:bg-black/90 transition-all"
                   >
                     Start using Pro
                   </button>
@@ -2668,7 +2685,7 @@ export default function AppPage() {
         )}
       </AnimatePresence>
 
-      {/* Limit Reached Modal - Cursor-style */}
+      {/* Limit Reached Modal - Warm theme */}
       <AnimatePresence>
         {showLimitReachedModal && (
           <>
@@ -2676,7 +2693,7 @@ export default function AppPage() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[200]"
+              className="fixed inset-0 bg-black/30 backdrop-blur-sm z-[200]"
               onClick={() => setShowLimitReachedModal(false)}
             />
             <motion.div
@@ -2686,18 +2703,18 @@ export default function AppPage() {
               transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
               className="fixed inset-0 z-[201] flex items-center justify-center p-6 pointer-events-none"
             >
-              <div className="bg-[#1e1e1e] rounded-xl shadow-2xl w-full max-w-[420px] pointer-events-auto border border-white/[0.08] overflow-hidden">
+              <div className="bg-[#f5f3ef] rounded-2xl shadow-2xl shadow-black/10 w-full max-w-[420px] pointer-events-auto border border-black/[0.08] overflow-hidden">
                 {/* Header */}
-                <div className="px-6 py-5 border-b border-white/[0.06] flex items-center justify-between">
+                <div className="px-6 py-5 border-b border-black/[0.06] flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-violet-500/20 to-purple-500/20 border border-violet-500/30 flex items-center justify-center">
-                      <Crown size={18} className="text-violet-400" />
+                    <div className="w-10 h-10 rounded-xl bg-black flex items-center justify-center">
+                      <Crown size={18} className="text-white" />
                     </div>
                     <div>
-                      <p className="text-[15px] font-semibold text-white/95">Upgrade to Pro</p>
-                      <p className="text-[12px] text-white/50 mt-0.5">
+                      <h3 className="text-[15px] text-black/90" style={{ fontFamily: "Georgia, serif", fontStyle: "italic" }}>Upgrade to Pro</h3>
+                      <p className="text-[12px] text-black/50 mt-0.5">
                         {limitReachedAction === 'chat'
-                          ? 'Chat limit reached'
+                          ? 'Premium chat limit reached'
                           : limitReachedAction === 'counterargument'
                           ? 'Counterargument limit reached'
                           : limitReachedAction === 'improve' || limitReachedAction === 'polish'
@@ -2708,60 +2725,62 @@ export default function AppPage() {
                   </div>
                   <button
                     onClick={() => setShowLimitReachedModal(false)}
-                    className="p-1.5 hover:bg-white/[0.08] rounded-lg transition-colors"
+                    className="p-1.5 hover:bg-black/[0.04] rounded-lg transition-colors"
                   >
-                    <X size={16} className="text-white/40" />
+                    <X size={16} className="text-black/30" />
                   </button>
                 </div>
 
                 {/* Content */}
-                <div className="px-6 py-5">
+                <div className="px-6 py-5 bg-white/50">
                   <div className="mb-5">
-                    <p className="text-[13px] text-white/70 leading-relaxed mb-4">
-                      You've reached your free limit for this feature. Upgrade to Pro for unlimited documents, 150 premium prompts/month, and more.
+                    <p className="text-[13px] text-black/60 leading-relaxed mb-4">
+                      {limitReachedAction === 'chat'
+                        ? "You've used your 150 premium chat prompts this month. Upgrade for more premium access, or continue with free models."
+                        : "You've reached your limit for this feature. Upgrade to Pro for unlimited access."}
                     </p>
 
-                    <div className="space-y-2.5 mb-5">
-                      <div className="flex items-start gap-3 text-[13px] text-white/80">
-                        <div className="w-5 h-5 rounded-full bg-gradient-to-br from-violet-500 to-purple-500 flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <div className="space-y-3 mb-5">
+                      <div className="flex items-start gap-3 text-[13px] text-black/70">
+                        <div className="w-5 h-5 rounded-full bg-black flex items-center justify-center flex-shrink-0 mt-0.5">
                           <Check size={10} className="text-white" />
                         </div>
                         <div>
-                          <p className="font-medium">Unlimited documents</p>
-                          <p className="text-[11px] text-white/50 mt-0.5">No more 3 document limit</p>
+                          <p className="font-medium text-black/80">Unlimited documents</p>
+                          <p className="text-[11px] text-black/40 mt-0.5">No more 3 document limit</p>
                         </div>
                       </div>
-                      <div className="flex items-start gap-3 text-[13px] text-white/80">
-                        <div className="w-5 h-5 rounded-full bg-gradient-to-br from-violet-500 to-purple-500 flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <div className="flex items-start gap-3 text-[13px] text-black/70">
+                        <div className="w-5 h-5 rounded-full bg-black flex items-center justify-center flex-shrink-0 mt-0.5">
                           <Check size={10} className="text-white" />
                         </div>
                         <div>
-                          <p className="font-medium">150 premium prompts/month</p>
-                          <p className="text-[11px] text-white/50 mt-0.5">Claude, GPT-4, and latest models</p>
+                          <p className="font-medium text-black/80">150 premium chat prompts/month</p>
+                          <p className="text-[11px] text-black/40 mt-0.5">Claude & GPT-4 for conversations</p>
                         </div>
                       </div>
-                      <div className="flex items-start gap-3 text-[13px] text-white/80">
-                        <div className="w-5 h-5 rounded-full bg-gradient-to-br from-violet-500 to-purple-500 flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <div className="flex items-start gap-3 text-[13px] text-black/70">
+                        <div className="w-5 h-5 rounded-full bg-black flex items-center justify-center flex-shrink-0 mt-0.5">
                           <Check size={10} className="text-white" />
                         </div>
                         <div>
-                          <p className="font-medium">Unlimited free model access</p>
-                          <p className="text-[11px] text-white/50 mt-0.5">After premium limit reached</p>
+                          <p className="font-medium text-black/80">Unlimited AI actions</p>
+                          <p className="text-[11px] text-black/40 mt-0.5">Verify, synonyms, expand - always free</p>
                         </div>
                       </div>
                     </div>
                   </div>
 
-                  <div className="flex items-baseline gap-1.5 mb-5 pb-5 border-b border-white/[0.06]">
-                    <span className="text-3xl font-bold text-white">$9.99</span>
-                    <span className="text-white/50 text-sm">/month</span>
-                    <span className="ml-auto text-[11px] text-white/40">Cancel anytime</span>
+                  <div className="flex items-baseline gap-1.5 mb-5 pb-5 border-b border-black/[0.06]">
+                    <span className="text-3xl font-semibold text-black/90">$9.99</span>
+                    <span className="text-black/40 text-sm">/month</span>
+                    <span className="ml-auto text-[11px] text-black/40">Cancel anytime</span>
                   </div>
 
                   <div className="flex gap-3">
                     <button
                       onClick={() => setShowLimitReachedModal(false)}
-                      className="flex-1 px-4 py-2.5 bg-white/[0.08] text-white/70 rounded-lg text-[13px] font-medium hover:bg-white/[0.12] transition-colors"
+                      className="flex-1 px-4 py-2.5 bg-black/[0.05] text-black/60 rounded-xl text-[13px] font-medium hover:bg-black/[0.08] transition-colors"
                     >
                       Maybe later
                     </button>
@@ -2770,7 +2789,7 @@ export default function AppPage() {
                         setShowLimitReachedModal(false);
                         router.push("/pricing");
                       }}
-                      className="flex-1 px-4 py-2.5 bg-gradient-to-r from-violet-500 to-purple-500 text-white rounded-lg text-[13px] font-semibold hover:from-violet-600 hover:to-purple-600 transition-all shadow-lg shadow-violet-500/20"
+                      className="flex-1 px-4 py-2.5 bg-black text-white rounded-xl text-[13px] font-medium hover:bg-black/90 transition-all"
                     >
                       Upgrade now
                     </button>
@@ -2782,7 +2801,7 @@ export default function AppPage() {
         )}
       </AnimatePresence>
 
-      {/* Document Limit Modal */}
+      {/* Document Limit Modal - Warm theme */}
       <AnimatePresence>
         {showDocLimitModal && (
           <>
@@ -2790,7 +2809,7 @@ export default function AppPage() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[200]"
+              className="fixed inset-0 bg-black/30 backdrop-blur-sm z-[200]"
               onClick={() => setShowDocLimitModal(false)}
             />
             <motion.div
@@ -2800,63 +2819,63 @@ export default function AppPage() {
               transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
               className="fixed inset-0 z-[201] flex items-center justify-center p-6 pointer-events-none"
             >
-              <div className="bg-[#1e1e1e] rounded-xl shadow-2xl w-full max-w-[420px] pointer-events-auto border border-white/[0.08] overflow-hidden">
+              <div className="bg-[#f5f3ef] rounded-2xl shadow-2xl shadow-black/10 w-full max-w-[420px] pointer-events-auto border border-black/[0.08] overflow-hidden">
                 {/* Header */}
-                <div className="px-6 py-5 border-b border-white/[0.06] flex items-center justify-between">
+                <div className="px-6 py-5 border-b border-black/[0.06] flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-violet-500/20 to-purple-500/20 border border-violet-500/30 flex items-center justify-center">
-                      <FileText size={18} className="text-violet-400" />
+                    <div className="w-10 h-10 rounded-xl bg-black flex items-center justify-center">
+                      <FileText size={18} className="text-white" />
                     </div>
                     <div>
-                      <p className="text-[15px] font-semibold text-white/95">Document limit reached</p>
-                      <p className="text-[12px] text-white/50 mt-0.5">You've used all 3 free documents</p>
+                      <h3 className="text-[15px] text-black/90" style={{ fontFamily: "Georgia, serif", fontStyle: "italic" }}>Document limit reached</h3>
+                      <p className="text-[12px] text-black/50 mt-0.5">You've used all 3 free documents</p>
                     </div>
                   </div>
                   <button
                     onClick={() => setShowDocLimitModal(false)}
-                    className="p-1.5 hover:bg-white/[0.06] rounded-lg transition-colors"
+                    className="p-1.5 hover:bg-black/[0.04] rounded-lg transition-colors"
                   >
-                    <X size={16} className="text-white/40" />
+                    <X size={16} className="text-black/30" />
                   </button>
                 </div>
 
                 {/* Content */}
-                <div className="px-6 py-5">
-                  <p className="text-[13px] text-white/60 mb-5 leading-relaxed">
-                    Upgrade to Pro for <span className="text-white font-medium">unlimited documents</span> plus premium AI with Claude & GPT-4.
+                <div className="px-6 py-5 bg-white/50">
+                  <p className="text-[13px] text-black/60 mb-5 leading-relaxed">
+                    Upgrade to Pro for <span className="text-black/80 font-medium">unlimited documents</span> plus premium AI with Claude & GPT-4.
                   </p>
 
-                  <div className="space-y-2.5 mb-6 p-4 bg-white/[0.03] rounded-lg border border-white/[0.06]">
-                    <div className="flex items-center gap-2.5 text-[13px] text-white/70">
-                      <div className="w-5 h-5 rounded-full bg-gradient-to-br from-violet-500 to-purple-500 flex items-center justify-center">
+                  <div className="space-y-3 mb-6 p-4 bg-[#ebe7e0] rounded-xl border border-black/[0.04]">
+                    <div className="flex items-center gap-3 text-[13px] text-black/70">
+                      <div className="w-5 h-5 rounded-full bg-black flex items-center justify-center">
                         <Check size={10} className="text-white" />
                       </div>
                       <span>Unlimited documents</span>
                     </div>
-                    <div className="flex items-center gap-2.5 text-[13px] text-white/70">
-                      <div className="w-5 h-5 rounded-full bg-gradient-to-br from-violet-500 to-purple-500 flex items-center justify-center">
+                    <div className="flex items-center gap-3 text-[13px] text-black/70">
+                      <div className="w-5 h-5 rounded-full bg-black flex items-center justify-center">
                         <Check size={10} className="text-white" />
                       </div>
-                      <span>150 premium prompts/month (Claude & GPT-4)</span>
+                      <span>150 premium chat prompts/month</span>
                     </div>
-                    <div className="flex items-center gap-2.5 text-[13px] text-white/70">
-                      <div className="w-5 h-5 rounded-full bg-gradient-to-br from-violet-500 to-purple-500 flex items-center justify-center">
+                    <div className="flex items-center gap-3 text-[13px] text-black/70">
+                      <div className="w-5 h-5 rounded-full bg-black flex items-center justify-center">
                         <Check size={10} className="text-white" />
                       </div>
-                      <span>Graph-aware AI actions</span>
+                      <span>Unlimited AI actions (verify, synonyms, etc.)</span>
                     </div>
                   </div>
 
                   <div className="flex items-baseline gap-2 mb-5">
-                    <span className="text-2xl font-bold text-white">$9.99</span>
-                    <span className="text-white/40 text-sm">/month</span>
-                    <span className="ml-auto text-[11px] text-white/40">Cancel anytime</span>
+                    <span className="text-2xl font-semibold text-black/90">$9.99</span>
+                    <span className="text-black/40 text-sm">/month</span>
+                    <span className="ml-auto text-[11px] text-black/40">Cancel anytime</span>
                   </div>
 
                   <div className="flex gap-3">
                     <button
                       onClick={() => setShowDocLimitModal(false)}
-                      className="flex-1 px-4 py-2.5 bg-white/[0.08] text-white/70 rounded-lg text-[13px] font-medium hover:bg-white/[0.12] transition-colors"
+                      className="flex-1 px-4 py-2.5 bg-black/[0.05] text-black/60 rounded-xl text-[13px] font-medium hover:bg-black/[0.08] transition-colors"
                     >
                       Maybe later
                     </button>
@@ -2865,7 +2884,7 @@ export default function AppPage() {
                         setShowDocLimitModal(false);
                         router.push("/pricing");
                       }}
-                      className="flex-1 px-4 py-2.5 bg-gradient-to-r from-violet-500 to-purple-500 text-white rounded-lg text-[13px] font-semibold hover:from-violet-600 hover:to-purple-600 transition-all shadow-lg shadow-violet-500/20"
+                      className="flex-1 px-4 py-2.5 bg-black text-white rounded-xl text-[13px] font-medium hover:bg-black/90 transition-all"
                     >
                       Upgrade to Pro
                     </button>
