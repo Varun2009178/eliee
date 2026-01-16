@@ -33,7 +33,7 @@ function LandingPage() {
         <div className="flex items-center gap-3 md:gap-6">
           <a href="#features" className="text-sm text-black/50 hover:text-black transition-colors hidden md:block">Features</a>
           <a href="#how" className="text-sm text-black/50 hover:text-black transition-colors hidden md:block">How it Works</a>
-          
+              
           {session ? (
             <a 
               href="/app"
@@ -67,9 +67,9 @@ function LandingPage() {
             className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/5 border border-black/[0.08] mb-4"
           >
             <span className="text-[11px] md:text-xs font-medium text-black/60">AI-Native Google Docs for Thinking</span>
-          </motion.div>
+              </motion.div>
 
-          <motion.h1
+                  <motion.h1 
             initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.05 }}
@@ -240,7 +240,7 @@ function LandingPage() {
                       <ChevronDown size={10} className="text-white rotate-[-90deg]" />
                     </div>
                   </div>
-                </div>
+                 </div>
               </div>
            </div>
           </div>
@@ -269,7 +269,7 @@ function LandingPage() {
             <p className="text-black/50 text-sm max-w-lg mx-auto">
               Like Google Docs, but built for structured thinking. AI understands your reasoning, not just your words.
             </p>
-          </div>
+           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {[
               { icon: "FileText", title: "Rich Documents", desc: "Write naturally with formatting" },
@@ -291,13 +291,13 @@ function LandingPage() {
                   {feature.icon === "AlertTriangle" && <AlertTriangle size={16} className="text-black/40" />}
                   {feature.icon === "ChevronDown" && <ChevronDown size={16} className="text-black/40" />}
                   {feature.icon === "User" && <User size={16} className="text-black/40" />}
-                </div>
+           </div>
                 <h3 className="font-medium text-sm text-black/80 mb-1">{feature.title}</h3>
                 <p className="text-xs text-black/40">{feature.desc}</p>
-              </div>
+      </div>
             ))}
-          </div>
-        </div>
+               </div>
+               </div>
       </section>
 
       {/* Feature 1: Reasoning Blocks */}
@@ -538,8 +538,8 @@ function LandingPage() {
                 <p className="text-sm text-black/70">Consider pilot program with 2-3 enterprise customers before full commit.</p>
               </div>
             </div>
-          </div>
-        </div>
+                        </div>
+                      </div>
       </section>
 
       {/* Who it's for */}

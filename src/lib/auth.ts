@@ -18,7 +18,9 @@ export const auth = betterAuth({
   trustedOrigins: [
     "http://localhost:3000",
     "https://eliee.vercel.app",
-    "https://eliee.com"
+    "https://eliee.com",
+    "https://eliee.sh",
+    "https://www.eliee.sh"
   ],
   baseURL: getBaseURL(),
   database: new Pool({
