@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { ArrowLeft, Check, X, FileText, Sparkles, Zap, Brain } from "lucide-react";
 import { useSession } from "@/lib/auth-client";
+import posthog from "posthog-js";
 
 export default function PricingPage() {
   const { data: session } = useSession();
@@ -10,9 +11,22 @@ export default function PricingPage() {
 
   const handleUpgrade = async () => {
     if (!session) {
+      posthog.capture("checkout_started", {
+        plan: "pro",
+        price: 999, // cents
+        is_authenticated: false,
+      });
       window.location.href = "/auth";
       return;
     }
+
+    // Track checkout start
+    posthog.capture("checkout_started", {
+      plan: "pro",
+      price: 999, // cents
+      is_authenticated: true,
+      user_id: session.user.id,
+    });
 
     setIsLoading(true);
     try {
@@ -26,10 +40,14 @@ export default function PricingPage() {
         window.location.href = data.url;
       } else {
         alert("Something went wrong. Please try again.");
+        posthog.capture("checkout_failed", {
+          reason: "no_checkout_url",
+        });
       }
     } catch (err) {
       console.error(err);
       alert("Failed to start checkout. Please try again.");
+      posthog.captureException(err);
     } finally {
       setIsLoading(false);
     }

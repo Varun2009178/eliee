@@ -45,15 +45,16 @@ import {
 } from "lucide-react";
 import { useSession, signOut } from "@/lib/auth-client";
 import { useRouter } from "next/navigation";
-import { 
-  getUserDocuments, 
-  createDocument, 
-  saveDocument, 
+import {
+  getUserDocuments,
+  createDocument,
+  saveDocument,
   deleteDocument,
   Document,
   DocBlock,
   BlockType
 } from "@/lib/db";
+import posthog from "posthog-js";
 
 // --- Types ---
 
@@ -476,6 +477,12 @@ export default function AppPage() {
       setShowVisualView(false);
       setAIResult(null);
       setShowDocumentTypeModal(false);
+
+      // Track document creation
+      posthog.capture("document_created", {
+        document_type: type,
+        document_id: newDoc.id,
+      });
       // Auto-open Focus Mode for AI Native documents
       if (type === "ai_native") {
         setShowFocusMode(true);
@@ -767,6 +774,14 @@ export default function AppPage() {
     // Visualization is FREE for everyone - no limits!
     setIsAnalyzing(true);
     setError(null);
+
+    // Track visualization generation
+    posthog.capture("visualization_generated", {
+      document_id: currentDocId,
+      text_length: allText.length,
+      block_count: blocks.length,
+    });
+
     try {
       // Send blocks with type information so visualization can use structured blocks
       const res = await fetch("/api/visualize", {
@@ -797,6 +812,7 @@ export default function AppPage() {
       }
     } catch (e: any) {
       setError("Visualization temporarily unavailable. Try again.");
+      posthog.captureException(e);
       setTimeout(() => setError(null), 5000);
     } finally {
       setIsAnalyzing(false);
@@ -815,6 +831,13 @@ export default function AppPage() {
   };
 
   const handleDownloadPDF = () => {
+    // Track document export
+    posthog.capture("document_exported", {
+      document_id: currentDocId,
+      format: "pdf",
+      word_count: wordCount,
+    });
+
     const printContent = `
       <html>
         <head><title>${docTitle}</title>
@@ -1053,6 +1076,23 @@ export default function AppPage() {
       setLimitReachedAction(action);
       setShowLimitReachedModal(true);
       return;
+    }
+
+    // Track AI action usage
+    if (action === "chat") {
+      posthog.capture("focus_mode_chat_sent", {
+        model: focusModel,
+        text_length: textToProcess.length,
+        is_pro: isPro,
+      });
+    } else {
+      posthog.capture("ai_action_used", {
+        action_type: action,
+        model: focusModel,
+        text_length: textToProcess.length,
+        is_pro: isPro,
+        document_id: currentDocId,
+      });
     }
 
     setIsFocusLoading(true);
@@ -1443,7 +1483,10 @@ export default function AppPage() {
           ) : (
             /* Upgrade to Pro button - BIGGER */
             <button
-              onClick={() => setShowProModal(true)}
+              onClick={() => {
+                posthog.capture("upgrade_modal_opened", { location: "sidebar" });
+                setShowProModal(true);
+              }}
               className="w-full flex items-center justify-center gap-3 px-5 py-4 rounded-xl bg-gradient-to-r from-violet-500 to-purple-500 text-white text-base font-semibold hover:from-violet-600 hover:to-purple-600 transition-all shadow-sm"
             >
               <Crown size={20} /> Upgrade to Pro

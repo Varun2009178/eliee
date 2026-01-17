@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { updateUserProStatus } from "@/lib/db";
+import { getPostHogClient } from "@/lib/posthog-server";
 
 export const dynamic = "force-dynamic";
 
@@ -39,6 +40,19 @@ export async function POST(req: NextRequest) {
           // User successfully subscribed - set pro status
           await updateUserProStatus(userId, true);
           console.log(`User ${userId} upgraded to Pro`);
+
+          // Track subscription completion in PostHog
+          const posthog = getPostHogClient();
+          posthog.capture({
+            distinctId: userId,
+            event: "subscription_completed",
+            properties: {
+              plan: "pro",
+              price: session.amount_total,
+              currency: session.currency,
+              subscription_id: session.subscription,
+            },
+          });
         }
         break;
       }
@@ -64,6 +78,18 @@ export async function POST(req: NextRequest) {
           // Subscription cancelled - revoke pro status
           await updateUserProStatus(userId, false);
           console.log(`User ${userId} subscription cancelled`);
+
+          // Track subscription cancellation in PostHog
+          const posthog = getPostHogClient();
+          posthog.capture({
+            distinctId: userId,
+            event: "subscription_cancelled",
+            properties: {
+              plan: "pro",
+              subscription_id: subscription.id,
+              cancelled_at: subscription.canceled_at,
+            },
+          });
         }
         break;
       }

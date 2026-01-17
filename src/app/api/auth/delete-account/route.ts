@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { Pool } from "pg";
+import { getPostHogClient } from "@/lib/posthog-server";
 
 export const dynamic = "force-dynamic";
 
@@ -38,10 +39,20 @@ export async function POST() {
       // Better Auth tables use standard names: user, session, account, verification
       // We need to delete from user which cascades to session and account (if set up with CASCADE)
       await pool.query('DELETE FROM "user" WHERE id = $1', [userId]);
+
+      // Track account deletion in PostHog
+      const posthog = getPostHogClient();
+      posthog.capture({
+        distinctId: userId,
+        event: "account_deleted",
+        properties: {
+          user_email: session.user.email,
+        },
+      });
     } finally {
       await pool.end();
     }
-    
+
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("Delete account error:", error);

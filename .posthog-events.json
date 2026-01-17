@@ -1,0 +1,77 @@
+[
+  {
+    "event": "demo_action_used",
+    "description": "User tried a demo action (paraphrase, synonyms, simplify, expand, counter) on the landing page",
+    "file": "src/app/page.tsx"
+  },
+  {
+    "event": "cta_clicked",
+    "description": "User clicked a CTA button (get started, start writing free, open editor)",
+    "file": "src/app/page.tsx"
+  },
+  {
+    "event": "sign_up_completed",
+    "description": "User successfully signed up for an account",
+    "file": "src/app/auth/page.tsx"
+  },
+  {
+    "event": "sign_in_completed",
+    "description": "User successfully signed in",
+    "file": "src/app/auth/page.tsx"
+  },
+  {
+    "event": "document_created",
+    "description": "User created a new document (visualization or ai_native type)",
+    "file": "src/app/app/page.tsx"
+  },
+  {
+    "event": "visualization_generated",
+    "description": "User generated a visualization of their document",
+    "file": "src/app/app/page.tsx"
+  },
+  {
+    "event": "ai_action_used",
+    "description": "User used an AI action (verify, paraphrase, synonyms, expand, simplify, etc.) in Focus Mode",
+    "file": "src/app/app/page.tsx"
+  },
+  {
+    "event": "focus_mode_chat_sent",
+    "description": "User sent a chat message in Focus Mode assistant",
+    "file": "src/app/app/page.tsx"
+  },
+  {
+    "event": "upgrade_modal_opened",
+    "description": "User opened the upgrade to Pro modal",
+    "file": "src/app/app/page.tsx"
+  },
+  {
+    "event": "checkout_started",
+    "description": "User initiated Stripe checkout for Pro subscription",
+    "file": "src/app/pricing/page.tsx"
+  },
+  {
+    "event": "subscription_completed",
+    "description": "User successfully completed Pro subscription (server-side)",
+    "file": "src/app/api/stripe/webhook/route.ts"
+  },
+  {
+    "event": "subscription_cancelled",
+    "description": "User cancelled their Pro subscription (server-side)",
+    "file": "src/app/api/stripe/webhook/route.ts"
+  },
+  {
+    "event": "document_exported",
+    "description": "User exported their document as PDF",
+    "file": "src/app/app/page.tsx"
+  },
+  {
+    "event": "sign_out_completed",
+    "description": "User signed out of their account",
+    "file": "src/app/settings/page.tsx"
+  },
+  {
+    "event": "account_deleted",
+    "description": "User deleted their account (server-side)",
+    "file": "src/app/api/auth/delete-account/route.ts"
+  }
+]

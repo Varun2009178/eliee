@@ -6,6 +6,7 @@ import { signIn, signUp, useSession } from "@/lib/auth-client";
 import { motion } from "framer-motion";
 import { ArrowLeft, Loader2, Mail, Lock, User } from "lucide-react";
 import Link from "next/link";
+import posthog from "posthog-js";
 
 // Force dynamic rendering to prevent prerendering errors with useSearchParams
 export const dynamic = 'force-dynamic';
@@ -55,7 +56,16 @@ function AuthForm() {
         });
         if (error) {
           setError(error.message || "Sign up failed");
+          posthog.capture("sign_up_failed", { error: error.message });
         } else {
+          // Identify user and capture sign up event
+          posthog.identify(email, {
+            email: email,
+            name: name || email.split("@")[0],
+          });
+          posthog.capture("sign_up_completed", {
+            method: "email",
+          });
           router.push("/app");
         }
       } else {
@@ -66,12 +76,21 @@ function AuthForm() {
         });
         if (error) {
           setError(error.message || "Sign in failed");
+          posthog.capture("sign_in_failed", { error: error.message });
         } else {
+          // Identify user and capture sign in event
+          posthog.identify(email, {
+            email: email,
+          });
+          posthog.capture("sign_in_completed", {
+            method: "email",
+          });
           router.push("/app");
         }
       }
     } catch (err: any) {
       setError(err.message || "Something went wrong");
+      posthog.captureException(err);
     } finally {
       setIsLoading(false);
     }

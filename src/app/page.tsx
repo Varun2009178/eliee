@@ -21,6 +21,7 @@ import {
   Check
 } from "lucide-react";
 import { useSession } from "@/lib/auth-client";
+import posthog from "posthog-js";
 
 // --- Landing Page Component ---
 function LandingPage() {
@@ -43,6 +44,11 @@ function LandingPage() {
   const demoText = demoPrompts[currentPromptIndex];
 
   const handleGetStarted = () => {
+    posthog.capture("cta_clicked", {
+      button_location: "nav",
+      button_text: session ? "Go to App" : "Get started",
+      is_authenticated: !!session,
+    });
     window.location.href = session ? "/app" : "/auth";
   };
 
@@ -69,6 +75,13 @@ function LandingPage() {
 
   const handleDemoAction = async (action: string) => {
     if (!demoText.trim()) return;
+
+    // Track demo action usage
+    posthog.capture("demo_action_used", {
+      action_type: action,
+      prompt_index: currentPromptIndex,
+      prompt_text: demoText.substring(0, 100), // First 100 chars
+    });
 
     setSelectedAction(action);
     setIsProcessing(true);

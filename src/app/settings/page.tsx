@@ -4,17 +4,18 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useSession, signOut } from "@/lib/auth-client";
 import { motion } from "framer-motion";
-import { 
-  ArrowLeft, 
-  User, 
-  Mail, 
-  Trash2, 
-  LogOut, 
+import {
+  ArrowLeft,
+  User,
+  Mail,
+  Trash2,
+  LogOut,
   AlertTriangle,
   Check,
   Loader2
 } from "lucide-react";
 import Link from "next/link";
+import posthog from "posthog-js";
 
 export default function SettingsPage() {
   const { data: session, isPending } = useSession();
@@ -30,6 +31,10 @@ export default function SettingsPage() {
   }, [session, isPending, router]);
 
   const handleSignOut = async () => {
+    // Capture sign out event and reset PostHog
+    posthog.capture("sign_out_completed");
+    posthog.reset();
+
     await signOut({
       fetchOptions: {
         onSuccess: () => {
