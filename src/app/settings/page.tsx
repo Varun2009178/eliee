@@ -205,7 +205,7 @@ export default function SettingsPage() {
                </div>
                <Link
                  href="/pricing"
-                 className="block w-full text-center px-4 py-3 rounded-xl bg-gradient-to-r from-violet-500 to-indigo-500 text-white hover:opacity-90 transition-all font-medium text-sm"
+                 className="block w-full text-center px-4 py-3 rounded-xl bg-black text-white hover:bg-black/90 transition-all font-medium text-sm"
                >
                  Upgrade to Pro
                </Link>

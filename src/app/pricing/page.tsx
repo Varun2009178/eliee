@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { ArrowLeft, Check, X, FileText, Sparkles, Zap, Brain } from "lucide-react";
 import { useSession } from "@/lib/auth-client";
 import posthog from "posthog-js";
@@ -8,6 +8,25 @@ import posthog from "posthog-js";
 export default function PricingPage() {
   const { data: session } = useSession();
   const [isLoading, setIsLoading] = useState(false);
+  const [isPro, setIsPro] = useState(false);
+  const [loadingStatus, setLoadingStatus] = useState(true);
+
+  // Check Pro status on load
+  useEffect(() => {
+    if (session) {
+      fetch("/api/stripe/status")
+        .then((res) => res.json())
+        .then((data) => {
+          setIsPro(data.isPro || false);
+          setLoadingStatus(false);
+        })
+        .catch(() => {
+          setLoadingStatus(false);
+        });
+    } else {
+      setLoadingStatus(false);
+    }
+  }, [session]);
 
   const handleUpgrade = async () => {
     if (!session) {
@@ -161,26 +180,42 @@ export default function PricingPage() {
                 ))}
               </ul>
 
-              <button
-                onClick={handleUpgrade}
-                disabled={isLoading}
-                className="w-full py-3 rounded-xl bg-white text-black font-semibold text-sm hover:bg-white/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-              >
-                {isLoading ? (
-                  <>
-                    <div className="w-4 h-4 border-2 border-black/20 border-t-black rounded-full animate-spin" />
-                    Processing...
-                  </>
-                ) : (
-                  <>
-                    <Sparkles size={14} />
-                    Upgrade to Pro
-                  </>
-                )}
-              </button>
+              {loadingStatus ? (
+                <div className="w-full py-3 rounded-xl bg-white/10 text-white/50 font-medium text-sm text-center">
+                  Checking status...
+                </div>
+              ) : isPro ? (
+                <div className="space-y-3">
+                  <div className="w-full py-3 rounded-xl bg-emerald-500 text-white font-medium text-sm text-center flex items-center justify-center gap-2">
+                    <Check size={16} />
+                    You're on Pro
+                  </div>
+                  <a
+                    href="/app"
+                    className="block w-full py-2.5 rounded-xl border border-white/20 text-white/70 text-sm text-center hover:bg-white/5 transition-colors"
+                  >
+                    Go to app →
+                  </a>
+                </div>
+              ) : (
+                <button
+                  onClick={handleUpgrade}
+                  disabled={isLoading}
+                  className="w-full py-3 rounded-xl bg-white text-black font-semibold text-sm hover:bg-white/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {isLoading ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-black/20 border-t-black rounded-full animate-spin" />
+                      Processing...
+                    </>
+                  ) : (
+                    "Upgrade to Pro"
+                  )}
+                </button>
+              )}
 
               <p className="text-xs text-white/30 text-center mt-3">
-                Cancel anytime • 14-day money-back guarantee
+                Cancel anytime
               </p>
             </div>
           </div>
@@ -248,7 +283,7 @@ export default function PricingPage() {
             </div>
             <div className="bg-white rounded-xl border border-black/[0.06] p-5 shadow-sm">
               <h3 className="text-sm text-black/70 font-medium mb-2">Can I cancel anytime?</h3>
-              <p className="text-sm text-black/40">Yes, one click in settings. You'll keep Pro until the end of your billing period. 14-day money-back guarantee, no questions asked.</p>
+              <p className="text-sm text-black/40">Yes, one click in settings. You'll keep Pro until the end of your billing period.</p>
             </div>
           </div>
         </div>

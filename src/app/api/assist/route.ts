@@ -4,7 +4,7 @@ import { getUserUsage, updateUserUsage } from "@/lib/db";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-type AssistAction = "chat" | "fact_check" | "synonyms" | "expand" | "simplify" | "explain" | "improve" | "paraphrase_preserve" | "find_similes" | "decompose_claims" | "counterargument";
+type AssistAction = "chat" | "fact_check" | "synonyms" | "expand" | "simplify" | "explain" | "improve" | "paraphrase_preserve" | "find_similes" | "decompose_claims" | "counterargument" | "check_logic";
 
 interface GraphNode {
   id: string;
@@ -76,7 +76,18 @@ ${text}`;
   expand: (text, context) => `Expand this idea with substantive detail. Start directly with the expanded text. NO "Here is an expansion..." or similar.\n\nContext: ${context || "N/A"}\n\nText to expand: "${text}"`,
   simplify: (text) => `Rewrite this for clarity. Output ONLY the simplified text. NO preamble.\n\nOriginal: "${text}"`,
   explain: (text) => `Explain this concept clearly and accurately. Start directly with the explanation. NO "Sure" or "Here is...".\n\nText: "${text}"`,
-  improve: (text, context) => `Improve this writing's clarity, precision, grammar, and flow. Enhance persuasiveness where appropriate. Return only the revised text, no commentary.\n\nContext: ${context || "N/A"}\n\nText to improve: "${text}"`,
+  improve: (text, context) => `Improve this writing. Focus on:
+1. **Clarity**: Make vague statements specific. If something is unclear, rewrite it to be concrete.
+2. **Logic flow**: Ensure ideas connect smoothly. Add transitions where needed.
+3. **Precision**: Replace weak words with stronger, more precise alternatives.
+4. **Completeness**: If an idea feels incomplete, expand it briefly to make the point land.
+
+Do NOT just fix grammar - actively strengthen the argument and make the reasoning clearer.
+Return ONLY the revised text, no meta-commentary.
+
+Context: ${context || "N/A"}
+
+Text to improve: "${text}"`,
   paraphrase_preserve: (text, context, graphStructure) => {
     const graphContext = graphStructure?.nodes
       ? `\n\nArgument Graph Nodes:\n${graphStructure.nodes.map(n => `- ${n.label} [${n.type}]`).join('\n')}`
@@ -107,6 +118,35 @@ ${existingNodes}
       ? `\n\nExisting Argument Structure:\n${graphStructure.nodes.map(n => `- ${n.label} [${n.type}]`).join('\n')}`
       : '';
     return `Generate 2-3 thoughtful counterarguments. Start directly with the points (e.g., "1. [Point]"). NO "We are going to challenge..." or "Here are...".\n\nContext: ${context || "N/A"}${graphContext}\n\nClaim to challenge: "${text}"`;
+  },
+  check_logic: (text, context, graphStructure) => {
+    const graphContext = graphStructure?.nodes
+      ? `\n\nExisting Argument Structure:\n${graphStructure.nodes.map(n => `- ${n.label} [${n.type}]`).join('\n')}`
+      : '';
+    return `Analyze this text for logical reasoning issues. Be specific and actionable. Format your response with these sections:
+
+**Inconsistencies** (if any):
+- Point out any contradictory statements or logical conflicts
+
+**Missing Steps** (if any):
+- Identify gaps in the reasoning chain where steps are skipped
+- Note any unstated assumptions that should be explicit
+
+**Unclear Logic** (if any):
+- Flag vague or ambiguous claims that need clarification
+- Identify where cause-and-effect relationships are weak
+
+**Suggestions to Strengthen**:
+- For each issue found, suggest specifically what to expand or clarify
+- Be concrete: "Explain WHY X leads to Y" rather than just "clarify this"
+
+If the logic is sound, say so briefly and suggest what could make it even stronger.
+
+NO preamble like "I'll analyze..." - start directly with the analysis.
+
+Context: ${context || "N/A"}${graphContext}
+
+Text to analyze: "${text}"`;
   },
 };
 

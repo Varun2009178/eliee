@@ -157,6 +157,7 @@ export default function AppPage() {
 
   // Free tier usage tracking
   const [focusUsage, setFocusUsage] = useState<Record<string, number>>({
+    check_logic: 0,
     fact_check: 0,
     synonyms: 0,
     expand: 0,
@@ -178,6 +179,7 @@ export default function AppPage() {
   const [isResizingFocus, setIsResizingFocus] = useState(false);
 
   const FREE_LIMITS: Record<string, number> = {
+    check_logic: 3,
     fact_check: 3,
     paraphrase_preserve: 2,
     find_similes: 2,
@@ -367,8 +369,8 @@ export default function AppPage() {
               setShowFocusMode(false);
             }
           } else {
-            // No documents - show type selection modal
-            setShowDocumentTypeModal(true);
+            // No documents - auto-create AI Native document
+            handleCreateDocumentWithType("ai_native");
           }
         })
         .catch((err) => {
@@ -445,15 +447,15 @@ export default function AppPage() {
     };
   }, [blocks, docTitle, currentDocId, session, sessionLoading]);
 
-  // Create new document
+  // Create new document - auto-creates AI Native document
   const handleNewDocument = () => {
     // Check document limit for free users
     if (!isPro && documents.length >= FREE_DOCUMENT_LIMIT) {
       setShowDocLimitModal(true);
       return;
     }
-    // Show document type selection modal
-    setShowDocumentTypeModal(true);
+    // Auto-create AI Native document (default)
+    handleCreateDocumentWithType("ai_native");
   };
 
   const handleCreateDocumentWithType = async (type: "visualization" | "ai_native") => {
@@ -1257,6 +1259,7 @@ export default function AppPage() {
 
   // Memoize focus action buttons to prevent re-renders
   const focusActionButtons = useMemo(() => [
+    { action: "check_logic", label: "Check Logic" },
     { action: "fact_check", label: "Verify" },
     { action: "paraphrase_preserve", label: "Paraphrase" },
     { action: "find_similes", label: "Find Synonyms" },
@@ -1268,6 +1271,7 @@ export default function AppPage() {
   ], []);
 
   const focusActionIcons: Record<string, any> = {
+    check_logic: GitMerge,
     fact_check: AlertTriangle,
     paraphrase_preserve: FileText,
     find_similes: Eye,
@@ -1356,17 +1360,6 @@ export default function AppPage() {
 
               <div className="p-1">
                 <button
-                  onClick={() => handleCreateDocumentWithType("visualization")}
-                  className="w-full px-3 py-2.5 text-left rounded hover:bg-white/[0.06] transition-colors flex items-center gap-3"
-                >
-                  <Eye size={15} className="text-white/50" />
-                  <div>
-                    <p className="text-[13px] text-white/90">Visualization</p>
-                    <p className="text-[11px] text-white/40">Map thoughts, see logic visually</p>
-                  </div>
-                </button>
-
-                <button
                   onClick={() => handleCreateDocumentWithType("ai_native")}
                   className="w-full px-3 py-2.5 text-left rounded hover:bg-white/[0.06] transition-colors flex items-center gap-3"
                 >
@@ -1376,6 +1369,17 @@ export default function AppPage() {
                     <p className="text-[11px] text-white/40">Write with AI assistance</p>
                   </div>
                 </button>
+
+                <div
+                  className="w-full px-3 py-2.5 text-left rounded flex items-center gap-3 opacity-40 cursor-not-allowed"
+                >
+                  <Eye size={15} className="text-white/30" />
+                  <div className="flex-1">
+                    <p className="text-[13px] text-white/50">Visualization</p>
+                    <p className="text-[11px] text-white/30">Map thoughts, see logic visually</p>
+                  </div>
+                  <span className="text-[9px] text-white/30 uppercase tracking-wider font-medium">Coming Soon</span>
+                </div>
               </div>
 
               <div className="px-4 py-2.5 border-t border-white/[0.06] flex justify-end">
@@ -1501,14 +1505,14 @@ export default function AppPage() {
               <button
                 onClick={handleToggleFocusMode}
                 className={cn(
-                  "w-full flex items-center justify-center gap-3 px-4 py-4 rounded-xl text-base font-semibold transition-all border-2",
+                  "w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg text-[13px] font-medium transition-colors",
                   showFocusMode
-                    ? "bg-blue-500 text-white border-blue-500"
-                    : "bg-white text-black/60 border-black/[0.1] hover:border-black/25"
+                    ? "bg-black text-white"
+                    : "bg-black/[0.04] text-black/70 hover:bg-black/[0.06]"
                 )}
               >
-                <Wand2 size={20} />
-                <span>Focus</span>
+                <span>Focus Mode</span>
+                <span className="text-[10px] text-black/30 ml-0.5">⌘K</span>
               </button>
             ) : null}
 
@@ -1518,36 +1522,24 @@ export default function AppPage() {
 
         <div className="p-5 border-t border-black/[0.04]">
           {isPro ? (
-            /* Pro user status - BIGGER */
-            <div className="flex items-center justify-between p-4 rounded-xl bg-gradient-to-r from-violet-50 to-purple-50 border border-violet-200/50">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-purple-500 flex items-center justify-center">
-                  <Crown size={18} className="text-white" />
-                </div>
-                <div>
-                  <p className="text-sm font-semibold text-black/80">Pro Plan</p>
-                  <p className="text-xs text-black/45">{premiumPromptsLimit - premiumPromptsUsed} premium prompts left</p>
-                </div>
+            /* Pro user status - Cursor/Linear style: minimal */
+            <div className="flex items-center justify-between p-3 rounded-lg bg-black/[0.02] border border-black/[0.04]">
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                <span className="text-[13px] font-medium text-black/70">Pro</span>
               </div>
-              <Check size={18} className="text-emerald-500" />
+              <span className="text-[12px] text-black/40">{premiumPromptsLimit - premiumPromptsUsed} prompts left</span>
             </div>
           ) : (
-            /* Upgrade to Pro button - BIGGER */
+            /* Upgrade to Pro button - Cursor/Linear style: clean, minimal */
             <button
               onClick={() => {
                 posthog.capture("upgrade_modal_opened", { location: "sidebar" });
                 setShowProModal(true);
               }}
-              className="w-full relative group overflow-hidden rounded-xl p-[1px] shadow-lg shadow-violet-500/20 hover:shadow-violet-500/40 transition-all duration-300 hover:scale-[1.02]"
+              className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg bg-black text-white text-[13px] font-medium hover:bg-black/90 transition-colors"
             >
-              <div className="absolute inset-0 bg-gradient-to-r from-violet-500 via-fuchsia-500 to-indigo-500" />
-              <div className="relative flex items-center justify-center gap-3 px-5 py-4 bg-[#0a0a0a] rounded-[11px] group-hover:bg-[#111] transition-colors">
-                <div className="relative">
-                  <div className="absolute inset-0 bg-violet-500 blur-lg opacity-40 group-hover:opacity-60 transition-opacity" />
-                  <Crown size={20} className="relative text-violet-200 group-hover:text-white transition-colors" />
-                </div>
-                <span className="text-white font-semibold tracking-wide text-[15px] group-hover:text-white/90">Upgrade to Pro</span>
-              </div>
+              Upgrade to Pro
             </button>
           )}
         </div>
@@ -1612,10 +1604,9 @@ export default function AppPage() {
             }) && (
               <button
                 onClick={() => setShowProModal(true)}
-                className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-gradient-to-r from-violet-50 to-purple-50 border border-violet-200/50 text-[11px] font-medium text-violet-700 hover:from-violet-100 hover:to-purple-100 transition-all"
+                className="hidden sm:flex items-center px-2.5 py-1 rounded-md bg-black text-[11px] font-medium text-white hover:bg-black/90 transition-colors"
               >
-                <Crown size={12} />
-                <span>Upgrade for more</span>
+                Upgrade
               </button>
             )}
             {showVisualView && (
@@ -2136,20 +2127,20 @@ export default function AppPage() {
               </div>
             </div>
 
-            {/* Usage Limits - BIGGER */}
+            {/* Usage Limits */}
             {!isPro ? (
-              <div className="px-5 py-4 border-b border-black/[0.04] bg-black/[0.01]">
+              <div className="px-5 py-4 border-b border-black/[0.04]">
                 <div className="flex items-center justify-between mb-3">
-                  <span className="text-xs font-semibold text-black/50 uppercase tracking-wider">Usage Limits</span>
+                  <span className="text-[11px] font-medium text-black/40 uppercase tracking-wider">Free tier</span>
                   {Object.entries(FREE_LIMITS).some(([action]) => {
                     const remaining = getRemainingUses(action);
                     return remaining !== Infinity && remaining < FREE_LIMITS[action];
                   }) && (
                     <button
                       onClick={() => setShowProModal(true)}
-                      className="text-xs text-black/45 hover:text-black/65 underline"
+                      className="text-[10px] font-medium text-black/50 hover:text-black/70 transition-colors"
                     >
-                      Upgrade
+                      Upgrade →
                     </button>
                   )}
                 </div>
@@ -2201,16 +2192,16 @@ export default function AppPage() {
                 </div>
               </div>
             ) : (
-              <div className="px-5 py-4 border-b border-black/[0.04]">
-                <div className="flex items-center gap-3">
-                  <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-gradient-to-r from-amber-100 to-orange-100 border border-amber-200/50">
-                    <Crown size={14} className="text-amber-600" />
-                    <span className="text-xs font-semibold text-amber-700">Pro</span>
+              <div className="px-5 py-3 border-b border-black/[0.04]">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] font-medium text-black/70">Pro</span>
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
                   </div>
-                  <span className="text-sm text-black/45">
+                  <span className="text-[11px] text-black/40">
                     {premiumPromptsUsed >= premiumPromptsLimit
-                      ? "Free models (unlimited)"
-                      : `${premiumPromptsLimit - premiumPromptsUsed} premium prompts`}
+                      ? "Free models"
+                      : `${premiumPromptsLimit - premiumPromptsUsed} prompts`}
                   </span>
                 </div>
               </div>
@@ -2352,24 +2343,16 @@ export default function AppPage() {
                           </div>
                           {/* Upgrade prompt for free users - show after every assistant response */}
                           {!isPro && msg.role === "assistant" && (
-                            <div className="mt-3 p-3 rounded-lg bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200/50">
-                              <div className="flex items-start gap-2.5">
-                                <Crown size={14} className="text-amber-600 mt-0.5 flex-shrink-0" />
-                                <div className="flex-1">
-                                  <p className="text-[12px] font-medium text-black/80 mb-1">Upgrade to Pro</p>
-                                  <p className="text-[11px] text-black/60 leading-relaxed mb-2">
-                                    For more high-quality responses, upgrade to Pro and get 150 premium prompts/month with Claude, ChatGPT, and more.
-                                  </p>
-                                  <button
-                                    onClick={() => {
-                                      setShowProModal(true);
-                                    }}
-                                    className="text-[11px] font-semibold text-amber-700 hover:text-amber-800 underline"
-                                  >
-                                    Learn more →
-                                  </button>
-                                </div>
-                              </div>
+                            <div className="mt-3 flex items-center justify-between p-2.5 rounded-md bg-black/[0.02]">
+                              <p className="text-[11px] text-black/50">
+                                Get better results with Pro
+                              </p>
+                              <button
+                                onClick={() => setShowProModal(true)}
+                                className="text-[11px] font-medium text-black/70 hover:text-black px-2 py-1 rounded hover:bg-black/[0.04] transition-colors"
+                              >
+                                Upgrade →
+                              </button>
                             </div>
                           )}
                           {/* Add/Replace buttons for all assistant responses */}
@@ -2869,7 +2852,7 @@ export default function AppPage() {
 
                 <div className="px-6 py-3 border-t border-black/[0.04] bg-[#ebe7e0]">
                   <p className="text-[11px] text-black/40 text-center">
-                    Cancel anytime. 14-day money-back guarantee.
+                    Cancel anytime
                   </p>
                 </div>
               </div>

@@ -13,9 +13,24 @@ export async function GET(req: NextRequest) {
         }
 
         const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-            apiVersion: "2025-01-27.acacia" as any, // Use standard or latest if unsure, matching generic
+            apiVersion: "2025-01-27.acacia" as any,
         });
 
+        // First, try to find by userId in subscription metadata (most reliable)
+        const subscriptions = await stripe.subscriptions.search({
+            query: `status:'active' AND metadata['userId']:'${session.user.id}'`,
+        });
+
+        if (subscriptions.data.length > 0) {
+            const sub = subscriptions.data[0] as any;
+            return NextResponse.json({
+                isPro: true,
+                renewalDate: new Date(sub.current_period_end * 1000).toISOString(),
+                cancelAtPeriodEnd: sub.cancel_at_period_end,
+            });
+        }
+
+        // Fallback: check by email
         const customers = await stripe.customers.list({
             email: session.user.email,
             limit: 1,
@@ -27,7 +42,6 @@ export async function GET(req: NextRequest) {
         }
 
         const customer = customers.data[0];
-        // Find active subscription
         const sub = customer.subscriptions?.data.find(s => s.status === 'active' || s.status === 'trialing');
 
         return NextResponse.json({
