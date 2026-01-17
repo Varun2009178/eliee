@@ -943,6 +943,9 @@ export default function AppPage() {
           const activeElement = document.activeElement;
           if (activeElement && activeElement.tagName === 'TEXTAREA') {
             const textarea = activeElement as HTMLTextAreaElement;
+            // Ensure inputs are within the editor
+            if (!textarea.closest('[data-editor-content="true"]')) return;
+
             const start = textarea.selectionStart;
             const end = textarea.selectionEnd;
             if (start !== end) {
@@ -958,6 +961,18 @@ export default function AppPage() {
           // Check for regular text selections
           const selection = window.getSelection();
           if (selection && selection.rangeCount > 0) {
+            let anchorNode = selection.anchorNode;
+            // Handle text nodes
+            if (anchorNode && anchorNode.nodeType === 3) {
+              anchorNode = anchorNode.parentElement;
+            }
+            
+            // Verify selection is inside the editor
+            const element = anchorNode as HTMLElement;
+            if (!element || !element.closest || !element.closest('[data-editor-content="true"]')) {
+               return; 
+            }
+
             const text = selection.toString().trim();
             if (text.length > 0 && text.length < 1000) {
               setSelectedText(text);
@@ -1719,6 +1734,7 @@ export default function AppPage() {
             <motion.div 
               key="doc" 
               ref={scrollContainerRef}
+              data-editor-content="true"
               initial={{ opacity: 0 }} 
               animate={{ opacity: 1 }} 
               exit={{ opacity: 0 }} 

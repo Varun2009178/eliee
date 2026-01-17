@@ -203,7 +203,7 @@ function LandingPage() {
           transition={{ duration: 0.5, delay: 0.15 }}
           className="text-[#666] text-base md:text-lg max-w-xl text-center mb-10 leading-relaxed"
         >
-          AI-powered writing tools that help you write clearer, faster, and with more confidence.
+          An AI-native Google Docs alternative that helps you write clearer and faster.
         </motion.p>
 
         {/* CTA Buttons */}
@@ -236,7 +236,8 @@ function LandingPage() {
           className="w-full max-w-3xl relative"
         >
           {/* Card glow effect */}
-          <div className="absolute -inset-4 bg-gradient-to-b from-black/[0.03] to-transparent rounded-[28px] blur-2xl opacity-60" />
+          {/* Card glow effect - disabled on mobile for performance */}
+          <div className="hidden md:block absolute -inset-4 bg-gradient-to-b from-black/[0.03] to-transparent rounded-[28px] blur-2xl opacity-60" />
           
           <div className="relative bg-white rounded-2xl shadow-2xl shadow-black/[0.08] border border-black/[0.06] overflow-hidden">
             {/* Demo header */}
@@ -358,13 +359,12 @@ function LandingPage() {
                       const Icon = action.icon;
                       return (
                         <motion.button
-                          layout
                           key={action.id}
                           onClick={() => handleDemoAction(action.id)}
                           disabled={isProcessing}
                           whileHover={{ scale: 1.05 }}
                           whileTap={{ scale: 0.95 }}
-                          className={`relative w-10 h-10 rounded-xl flex items-center justify-center transition-shadow shadow-sm disabled:opacity-50 disabled:cursor-not-allowed ${
+                          className={`relative w-11 h-11 md:w-10 md:h-10 rounded-xl flex items-center justify-center transition-shadow shadow-sm disabled:opacity-50 disabled:cursor-not-allowed ${
                             selectedAction === action.id
                               ? "bg-white ring-2 ring-black shadow-md z-10"
                               : "bg-white hover:shadow-md border border-black/[0.04]"
