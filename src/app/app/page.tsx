@@ -38,7 +38,10 @@ import {
   Maximize2,
   Minimize2,
   CornerDownLeft,
-  MoreVertical
+  MoreVertical,
+  LayoutPanelLeft,
+  ListTree,
+  GitMerge
 } from "lucide-react";
 import { useSession, signOut } from "@/lib/auth-client";
 import { useRouter } from "next/navigation";
@@ -73,15 +76,15 @@ interface AIResult {
   };
 }
 
-// Block type metadata
+// Block type metadata - INCREASED icon sizes for better visibility
 const blockMeta: Record<BlockType, { label: string; icon: React.ReactNode; color: string; bgColor: string; borderColor: string }> = {
-  text: { label: "Text", icon: <Type size={14} />, color: "text-black/50", bgColor: "bg-transparent", borderColor: "border-transparent" },
-  claim: { label: "Claim", icon: <Target size={14} />, color: "text-blue-600", bgColor: "bg-blue-50/50", borderColor: "border-blue-200" },
-  assumption: { label: "Assumption", icon: <Lightbulb size={14} />, color: "text-amber-600", bgColor: "bg-amber-50/50", borderColor: "border-amber-200" },
-  evidence: { label: "Evidence", icon: <Zap size={14} />, color: "text-emerald-600", bgColor: "bg-emerald-50/50", borderColor: "border-emerald-200" },
-  decision: { label: "Decision", icon: <ArrowRight size={14} />, color: "text-purple-600", bgColor: "bg-purple-50/50", borderColor: "border-purple-200" },
-  risk: { label: "Risk", icon: <AlertTriangle size={14} />, color: "text-rose-600", bgColor: "bg-rose-50/50", borderColor: "border-rose-200" },
-  unknown: { label: "Unknown", icon: <HelpCircle size={14} />, color: "text-slate-600", bgColor: "bg-slate-50/50", borderColor: "border-slate-200" },
+  text: { label: "Text", icon: <Type size={16} />, color: "text-black/50", bgColor: "bg-transparent", borderColor: "border-transparent" },
+  claim: { label: "Claim", icon: <Target size={16} />, color: "text-blue-600", bgColor: "bg-blue-50/60", borderColor: "border-blue-300" },
+  assumption: { label: "Assumption", icon: <Lightbulb size={16} />, color: "text-amber-600", bgColor: "bg-amber-50/60", borderColor: "border-amber-300" },
+  evidence: { label: "Evidence", icon: <Zap size={16} />, color: "text-emerald-600", bgColor: "bg-emerald-50/60", borderColor: "border-emerald-300" },
+  decision: { label: "Decision", icon: <ArrowRight size={16} />, color: "text-purple-600", bgColor: "bg-purple-50/60", borderColor: "border-purple-300" },
+  risk: { label: "Risk", icon: <AlertTriangle size={16} />, color: "text-rose-600", bgColor: "bg-rose-50/60", borderColor: "border-rose-300" },
+  unknown: { label: "Unknown", icon: <HelpCircle size={16} />, color: "text-slate-600", bgColor: "bg-slate-50/60", borderColor: "border-slate-300" },
 };
 
 export default function AppPage() {
@@ -165,6 +168,13 @@ export default function AppPage() {
   const [premiumPromptsUsed, setPremiumPromptsUsed] = useState(0);
   const [premiumPromptsLimit, setPremiumPromptsLimit] = useState(150);
   const [showMobileWarning, setShowMobileWarning] = useState(false);
+  const [mobileWarningDismissed, setMobileWarningDismissed] = useState(false);
+  const [isMobileDevice, setIsMobileDevice] = useState(false);
+  const [focusViewMode, setFocusViewMode] = useState<"text" | "icons">("text");
+  
+  // Resizable focus (assistant) state
+  const [focusWidth, setFocusWidth] = useState(380);
+  const [isResizingFocus, setIsResizingFocus] = useState(false);
 
   const FREE_LIMITS: Record<string, number> = {
     fact_check: 3,
@@ -693,8 +703,52 @@ export default function AppPage() {
   };
   const handleDragEnd = () => setDraggedId(null);
 
-  // Check if mobile device
-  const isMobile = typeof window !== "undefined" && (window.innerWidth < 768 || /iPhone|iPad|iPod|Android/i.test(navigator.userAgent));
+  // Check mobile device on mount
+  useEffect(() => {
+    const checkMobile = () => {
+      const mobile = window.innerWidth < 768 || /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+      setIsMobileDevice(mobile);
+      if (mobile) {
+        setIsSidebarOpen(false); // Default close on mobile
+        // Show optimization hint briefly
+        setTimeout(() => setShowMobileWarning(true), 1000);
+      }
+    };
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  // Handle resizing
+  // Handle resizing (Assistant only)
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (isResizingFocus) {
+        let newWidth = window.innerWidth - e.clientX;
+        if (newWidth < 300) newWidth = 300; // min width
+        if (newWidth > 800) newWidth = 800; // max width
+        setFocusWidth(newWidth);
+      }
+    };
+
+    const handleMouseUp = () => {
+      setIsResizingFocus(false);
+    };
+
+    if (isResizingFocus) {
+      window.addEventListener("mousemove", handleMouseMove);
+      window.addEventListener("mouseup", handleMouseUp);
+      document.body.style.cursor = "col-resize";
+      document.body.style.userSelect = "none";
+    }
+
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    };
+  }, [isResizingFocus]);
 
   const handleVisualize = async () => {
     const allText = blocks.map(b => b.content).join("\n\n");
@@ -704,8 +758,8 @@ export default function AppPage() {
       return;
     }
 
-    // Check mobile and show warning
-    if (isMobile) {
+    // Check mobile and show warning (only if not dismissed)
+    if (isMobileDevice && !mobileWarningDismissed) {
       setShowMobileWarning(true);
       return;
     }
@@ -1122,6 +1176,17 @@ export default function AppPage() {
     { action: "improve", label: "Polish" },
   ], []);
 
+  const focusActionIcons: Record<string, any> = {
+    fact_check: AlertTriangle,
+    paraphrase_preserve: FileText,
+    find_similes: Eye,
+    decompose_claims: ListTree,
+    counterargument: Lightbulb,
+    expand: Target,
+    simplify: LayoutPanelLeft,
+    improve: Sparkles,
+  };
+
   const mermaidChart = useMemo(() => {
     if (!aiResult || !aiResult.nodes || aiResult.nodes.length === 0) return "";
     const nodes = aiResult.nodes.map((node, i) => {
@@ -1234,154 +1299,154 @@ export default function AppPage() {
           </motion.div>
         )}
       </AnimatePresence>
-      {/* Sidebar */}
-      <motion.aside 
+      {/* Sidebar - INCREASED width for better usability */}
+      <motion.aside
         initial={false}
-        animate={{ width: isSidebarOpen ? 280 : 0 }}
-        transition={{ type: "spring", damping: 30, stiffness: 300 }}
-        className="h-full border-r border-black/[0.06] bg-[#fafafa] flex flex-col z-40 overflow-hidden"
+        animate={{ width: isSidebarOpen ? 320 : 0 }}
+        transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+        className="relative border-r border-black/[0.06] bg-[#fcfcfc] flex flex-col overflow-hidden flex-shrink-0"
       >
-        <div className="p-5 flex items-center justify-between border-b border-black/[0.04]">
+        <div className="p-6 flex items-center justify-between border-b border-black/[0.04]">
           <div className="flex items-center gap-3">
-            <img src="/eliee_logo.jpg" alt="Logo" className="w-6 h-6 rounded-lg" />
-            <span className="font-semibold tracking-tight text-black text-sm">Eliee</span>
+            <img src="/eliee_logo.jpg" alt="Logo" className="w-8 h-8 rounded-lg" />
+            <span className="font-semibold tracking-tight text-black text-base">Eliee</span>
             {isPro && (
-              <span className="px-1.5 py-0.5 text-[9px] font-bold bg-gradient-to-r from-violet-500 to-purple-500 text-white rounded-md uppercase tracking-wide">
+              <span className="px-2 py-1 text-[10px] font-bold bg-gradient-to-r from-violet-500 to-purple-500 text-white rounded-md uppercase tracking-wide">
                 Pro
               </span>
             )}
           </div>
           <button
             onClick={handleNewDocument}
-            className="p-1.5 hover:bg-black/[0.05] rounded-lg transition-colors"
+            className="p-2 hover:bg-black/[0.05] rounded-lg transition-colors"
             title="New document"
           >
-            <Plus size={16} className="text-black/40" />
+            <Plus size={20} className="text-black/40" />
           </button>
         </div>
         
         <div className="flex-1 overflow-y-auto">
-          {/* Documents List */}
-          <div className="p-3 space-y-1">
-            <div className="flex items-center justify-between px-2 mb-2">
-              <p className="text-[9px] font-semibold uppercase tracking-wider text-black/25">Documents</p>
+          {/* Documents List - INCREASED sizes */}
+          <div className="p-4 space-y-1.5">
+            <div className="flex items-center justify-between px-3 mb-3">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-black/30">Documents</p>
               {!isPro && (
-                <span className="text-[9px] text-black/30">{documents.length}/{FREE_DOCUMENT_LIMIT}</span>
+                <span className="text-[11px] text-black/35">{documents.length}/{FREE_DOCUMENT_LIMIT}</span>
               )}
             </div>
             {documents.map((doc) => (
-              <div 
+              <div
                 key={doc.id}
                 onClick={() => handleSelectDocument(doc)}
                 className={cn(
-                  "group flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer transition-all",
-                  currentDocId === doc.id 
-                    ? "bg-white border border-black/[0.06]" 
-                    : "hover:bg-white/50"
+                  "group flex items-center gap-3 px-4 py-3 rounded-xl cursor-pointer transition-all",
+                  currentDocId === doc.id
+                    ? "bg-white border border-black/[0.08] shadow-sm"
+                    : "hover:bg-white/60"
                 )}
               >
-                <FileText size={14} className={cn("flex-shrink-0", currentDocId === doc.id ? "text-black/60" : "text-black/30")} />
-                <span className={cn("text-xs font-medium truncate flex-1", currentDocId === doc.id ? "text-black/80" : "text-black/50")}>
+                <FileText size={18} className={cn("flex-shrink-0", currentDocId === doc.id ? "text-black/60" : "text-black/35")} />
+                <span className={cn("text-sm font-medium truncate flex-1", currentDocId === doc.id ? "text-black/80" : "text-black/55")}>
                   {doc.title || "Untitled"}
                 </span>
                 <button
                   onClick={(e) => { e.stopPropagation(); handleDeleteDocument(doc.id); }}
-                  className="opacity-0 group-hover:opacity-100 p-1 hover:bg-black/[0.05] rounded transition-all"
+                  className="opacity-0 group-hover:opacity-100 p-1.5 hover:bg-black/[0.05] rounded-lg transition-all"
                 >
-                  <Trash2 size={12} className="text-black/30 hover:text-rose-500" />
+                  <Trash2 size={16} className="text-black/30 hover:text-rose-500" />
                 </button>
               </div>
             ))}
             {documents.length === 0 && (
-              <p className="text-xs text-black/30 text-center py-4">No documents yet</p>
+              <p className="text-sm text-black/35 text-center py-6">No documents yet</p>
             )}
           </div>
 
-          {/* Current Document Stats */}
-          <div className="p-4 space-y-4 border-t border-black/[0.04]">
-            <div className="p-4 rounded-xl bg-white border border-black/[0.04] space-y-3">
+          {/* Current Document Stats - INCREASED sizes */}
+          <div className="p-5 space-y-5 border-t border-black/[0.04]">
+            <div className="p-5 rounded-xl bg-white border border-black/[0.04] space-y-4">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 text-black/50">
-                  <FileText size={14} />
-                  <span className="text-xs font-medium truncate">{docTitle}</span>
+                <div className="flex items-center gap-3 text-black/50">
+                  <FileText size={18} />
+                  <span className="text-sm font-medium truncate">{docTitle}</span>
                 </div>
                 {isSaving ? (
-                  <div className="w-3 h-3 border border-black/20 border-t-black/50 rounded-full animate-spin" />
+                  <div className="w-4 h-4 border-2 border-black/20 border-t-black/50 rounded-full animate-spin" />
                 ) : lastSaved ? (
-                  <Check size={12} className="text-emerald-500" />
+                  <Check size={16} className="text-emerald-500" />
                 ) : null}
               </div>
-              <div className="flex items-center justify-between text-[11px] text-black/30">
+              <div className="flex items-center justify-between text-sm text-black/40">
                 <span>{wordCount} words</span>
                 {lastSaved && <span>Saved</span>}
               </div>
-              <div className="h-1 bg-black/[0.03] rounded-full overflow-hidden">
-                <div className="h-full bg-black/20 transition-all duration-300" style={{ width: `${Math.min(100, (wordCount / 300) * 100)}%` }} />
+              <div className="h-1.5 bg-black/[0.04] rounded-full overflow-hidden">
+                <div className="h-full bg-black/25 transition-all duration-300" style={{ width: `${Math.min(100, (wordCount / 300) * 100)}%` }} />
               </div>
             </div>
 
-            {/* Show features based on document type */}
+            {/* Show features based on document type - BIGGER buttons */}
             {documentType === "visualization" ? (
-              <button 
+              <button
                 onClick={handleToggleVisualize}
                 disabled={isAnalyzing || (!hasContent && !showVisualView)}
                 className={cn(
-                  "w-full flex items-center justify-center gap-2 px-3 py-3 rounded-xl text-xs font-medium transition-all",
-                  (hasContent || showVisualView) && !isAnalyzing 
+                  "w-full flex items-center justify-center gap-3 px-4 py-4 rounded-xl text-base font-semibold transition-all",
+                  (hasContent || showVisualView) && !isAnalyzing
                     ? showVisualView
                       ? "bg-blue-500 text-white hover:bg-blue-600"
                       : "bg-black text-white hover:bg-black/90"
-                    : "bg-black/[0.03] text-black/20 cursor-not-allowed"
+                    : "bg-black/[0.03] text-black/25 cursor-not-allowed"
                 )}
               >
                 {isAnalyzing ? (
-                  <div className="w-3 h-3 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                 ) : (
-                  <Eye size={14} />
+                  <Eye size={20} />
                 )}
                 <span>{showVisualView ? "Refresh" : "Visualize"}</span>
               </button>
             ) : documentType === "ai_native" ? (
-              <button 
+              <button
                 onClick={handleToggleFocusMode}
                 className={cn(
-                  "w-full flex items-center justify-center gap-2 px-3 py-3 rounded-xl text-xs font-medium transition-all border",
-                  showFocusMode 
-                    ? "bg-blue-500 text-white border-blue-500" 
-                    : "bg-white text-black/60 border-black/[0.08] hover:border-black/20"
+                  "w-full flex items-center justify-center gap-3 px-4 py-4 rounded-xl text-base font-semibold transition-all border-2",
+                  showFocusMode
+                    ? "bg-blue-500 text-white border-blue-500"
+                    : "bg-white text-black/60 border-black/[0.1] hover:border-black/25"
                 )}
               >
-                <Wand2 size={14} />
+                <Wand2 size={20} />
                 <span>Focus</span>
               </button>
             ) : null}
 
-            {error && <div className="p-3 rounded-lg bg-rose-50 border border-rose-100 text-rose-600 text-xs">{error}</div>}
+            {error && <div className="p-4 rounded-xl bg-rose-50 border border-rose-100 text-rose-600 text-sm">{error}</div>}
           </div>
         </div>
 
-        <div className="p-4 border-t border-black/[0.04]">
+        <div className="p-5 border-t border-black/[0.04]">
           {isPro ? (
-            /* Pro user status */
-            <div className="flex items-center justify-between p-3 rounded-xl bg-gradient-to-r from-violet-50 to-purple-50 border border-violet-200/50">
-              <div className="flex items-center gap-2">
-                <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-violet-500 to-purple-500 flex items-center justify-center">
-                  <Crown size={12} className="text-white" />
+            /* Pro user status - BIGGER */
+            <div className="flex items-center justify-between p-4 rounded-xl bg-gradient-to-r from-violet-50 to-purple-50 border border-violet-200/50">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-purple-500 flex items-center justify-center">
+                  <Crown size={18} className="text-white" />
                 </div>
                 <div>
-                  <p className="text-xs font-semibold text-black/80">Pro Plan</p>
-                  <p className="text-[10px] text-black/40">{premiumPromptsLimit - premiumPromptsUsed} premium prompts left</p>
+                  <p className="text-sm font-semibold text-black/80">Pro Plan</p>
+                  <p className="text-xs text-black/45">{premiumPromptsLimit - premiumPromptsUsed} premium prompts left</p>
                 </div>
               </div>
-              <Check size={14} className="text-emerald-500" />
+              <Check size={18} className="text-emerald-500" />
             </div>
           ) : (
-            /* Upgrade to Pro button */
+            /* Upgrade to Pro button - BIGGER */
             <button
               onClick={() => setShowProModal(true)}
-              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-violet-500 to-purple-500 text-white text-xs font-semibold hover:from-violet-600 hover:to-purple-600 transition-all shadow-sm"
+              className="w-full flex items-center justify-center gap-3 px-5 py-4 rounded-xl bg-gradient-to-r from-violet-500 to-purple-500 text-white text-base font-semibold hover:from-violet-600 hover:to-purple-600 transition-all shadow-sm"
             >
-              <Crown size={14} /> Upgrade to Pro
+              <Crown size={20} /> Upgrade to Pro
             </button>
           )}
         </div>
@@ -1389,16 +1454,44 @@ export default function AppPage() {
 
       {/* Main */}
       <main className="flex-1 relative bg-white overflow-hidden flex flex-col">
-        <header className="h-12 flex items-center justify-between px-5 border-b border-black/[0.04] bg-white z-30 flex-shrink-0">
-          <div className="flex items-center gap-3">
-            <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-1.5 hover:bg-black/[0.03] rounded-lg transition-colors">
-              <Menu size={16} className="text-black/40" />
-            </button>
-            <input type="text" value={docTitle} onChange={(e) => setDocTitle(e.target.value)} className="text-sm font-medium bg-transparent border-none focus:outline-none text-black/80 placeholder:text-black/30" placeholder="Untitled" />
-          </div>
+        {/* Mobile Desktop Hint */}
+        <AnimatePresence>
+          {isMobileDevice && showMobileWarning && (
+            <motion.div
+              initial={{ opacity: 0, y: 50 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 50 }}
+              className="fixed bottom-6 left-6 right-6 z-[100] flex justify-center pointer-events-none"
+            >
+              <div className="bg-[#1e1e1e] text-white px-4 py-3 rounded-xl shadow-2xl border border-white/10 flex items-center justify-between gap-4 max-w-sm pointer-events-auto">
+                <div className="flex flex-col">
+                  <span className="text-sm font-medium">Desktop Recommended</span>
+                  <span className="text-xs text-white/50">For the full Pro experience, try Eliee on your computer.</span>
+                </div>
+                <button
+                  onClick={() => {
+                    setShowMobileWarning(false);
+                    setMobileWarningDismissed(true);
+                  }}
+                  className="p-1 hover:bg-white/10 rounded-full transition-colors"
+                >
+                  <X size={16} className="text-white/50" />
+                </button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <header className="h-14 flex items-center justify-between px-6 border-b border-black/[0.06] bg-white z-30 flex-shrink-0">
           <div className="flex items-center gap-4">
+            <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-2 hover:bg-black/[0.04] rounded-lg transition-colors">
+              <Menu size={20} className="text-black/40" />
+            </button>
+            <input type="text" value={docTitle} onChange={(e) => setDocTitle(e.target.value)} className="text-base font-medium bg-transparent border-none focus:outline-none text-black/80 placeholder:text-black/30" placeholder="Untitled" />
+          </div>
+          <div className="flex items-center gap-5">
             {/* Autosave indicator */}
-            <div className="flex items-center gap-2 text-xs text-black/30">
+            <div className="flex items-center gap-2 text-sm text-black/35">
               {isSaving ? (
                 <>
                   <div className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
@@ -1590,35 +1683,35 @@ export default function AppPage() {
               onClick={() => { setShowCommandMenu(false); setShowExportMenu(false); setShowHeaderMenu(false); }}
               onContextMenu={(e) => !showFocusMode && handleDocContextMenu(e)}
             >
-              <div className="max-w-2xl mx-auto py-12 px-6">
-                <div className="space-y-2">
+              <div className="max-w-3xl mx-auto py-16 px-8">
+                <div className="space-y-4">
                   {blocks.map((block, index) => (
-                    <div key={block.id} data-block-id={block.id} onDragOver={(e) => handleDragOver(e, block.id)} className={cn("group relative rounded-lg transition-all", draggedId === block.id && "opacity-50", block.type !== "text" && "border-l-2", block.type !== "text" && blockMeta[block.type]?.borderColor)}>
-                      <div className="flex items-start gap-2 py-1.5">
-                        <div className="w-5 flex-shrink-0 pt-2 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center gap-0.5">
-                          <button onClick={() => removeBlock(block.id)} className="p-0.5 hover:bg-black/[0.03] rounded text-black/15 hover:text-black/40"><X size={10} /></button>
+                    <div key={block.id} data-block-id={block.id} onDragOver={(e) => handleDragOver(e, block.id)} className={cn("group relative rounded-xl transition-all", draggedId === block.id && "opacity-50", block.type !== "text" && "border-l-4", block.type !== "text" && blockMeta[block.type]?.borderColor)}>
+                      <div className="flex items-start gap-3 py-2">
+                        <div className="w-6 flex-shrink-0 pt-3 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center gap-1">
+                          <button onClick={() => removeBlock(block.id)} className="p-1 hover:bg-black/[0.04] rounded-lg text-black/20 hover:text-black/50"><X size={14} /></button>
                           <div
                             draggable
                             onDragStart={() => handleDragStart(block.id)}
                             onDragEnd={handleDragEnd}
-                            className="p-0.5 text-black/10 cursor-grab active:cursor-grabbing hover:text-black/25"
+                            className="p-1 text-black/15 cursor-grab active:cursor-grabbing hover:text-black/35"
                           >
-                            <GripVertical size={10} />
+                            <GripVertical size={14} />
                           </div>
                         </div>
-                        <div className={cn("flex-1 min-w-0 py-1.5 px-3 rounded-lg transition-colors", block.type !== "text" && blockMeta[block.type]?.bgColor)} onContextMenu={(e) => !showFocusMode && handleContextMenu(e, index)}>
-                          <div className="flex items-start justify-between gap-2 mb-1">
+                        <div className={cn("flex-1 min-w-0 py-3 px-5 rounded-xl transition-colors", block.type !== "text" && blockMeta[block.type]?.bgColor)} onContextMenu={(e) => !showFocusMode && handleContextMenu(e, index)}>
+                          <div className="flex items-start justify-between gap-3 mb-2">
                             <div className="flex-1">
                               {block.type !== "text" && blockMeta[block.type] && (
-                                <div className={cn("inline-flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-wider mb-1", blockMeta[block.type].color)}>
+                                <div className={cn("inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wider mb-2", blockMeta[block.type].color)}>
                                   {blockMeta[block.type].icon}
                                   {blockMeta[block.type].label}
                                 </div>
                               )}
                             </div>
-                            {/* Action buttons for AI Native documents */}
+                            {/* Action buttons for AI Native documents - BIGGER */}
                             {documentType === "ai_native" && showFocusMode && block.content.trim() && (
-                              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 flex-wrap">
+                              <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 flex-wrap">
                                 {focusActionButtons.map((item) => {
                                   const remaining = getRemainingUses(item.action);
                                   const allowed = remaining > 0 || remaining === Infinity;
@@ -1641,10 +1734,10 @@ export default function AppPage() {
                                       }}
                                       disabled={!allowed || isFocusLoading || !block.content.trim()}
                                       className={cn(
-                                        "px-2 py-0.5 text-[10px] rounded transition-all",
+                                        "px-2.5 py-1 text-xs rounded-lg transition-all",
                                         !allowed || !block.content.trim()
-                                          ? "text-black/15 cursor-not-allowed"
-                                          : "text-black/50 hover:text-black/80 hover:bg-black/[0.04]"
+                                          ? "text-black/20 cursor-not-allowed"
+                                          : "text-black/50 hover:text-black/80 hover:bg-black/[0.06]"
                                       )}
                                       title={item.label}
                                     >
@@ -1669,8 +1762,8 @@ export default function AppPage() {
                             }}
                             placeholder={block.type === "text" ? "Start writing..." : `Enter ${block.type}...`}
                             className={cn(
-                              "w-full bg-transparent border-none focus:ring-0 p-0 resize-none leading-relaxed placeholder:text-black/15 focus:outline-none",
-                              block.type === "text" ? "text-[15px] text-black/80" : "text-[14px] font-medium text-black/70"
+                              "w-full bg-transparent border-none focus:ring-0 p-0 resize-none leading-relaxed placeholder:text-black/20 focus:outline-none",
+                              block.type === "text" ? "text-lg text-black/80" : "text-base font-medium text-black/75"
                             )}
                             style={{ overflow: "hidden" }}
                             rows={1}
@@ -1891,24 +1984,34 @@ export default function AppPage() {
         </AnimatePresence>
       </main>
 
-      {/* Focus Mode Panel */}
+      {/* Focus Mode Panel - INCREASED width */}
       <AnimatePresence>
         {showFocusMode && (
-          <motion.div
-            initial={{ x: 400, opacity: 0 }}
-            animate={{ x: 0, opacity: 1 }}
-            exit={{ x: 400, opacity: 0 }}
-            transition={{ type: "spring", damping: 30, stiffness: 300 }}
-            className="w-80 h-full border-l border-black/[0.08] bg-white flex flex-col z-50"
-            data-focus-sidebar="true"
-          >
-            {/* Header - minimal */}
-            <div className="h-11 border-b border-black/[0.06] flex items-center justify-between px-3">
-              <div className="flex items-center gap-2">
-                <span className="text-[13px] font-medium text-black/70">Assistant</span>
-                <span className="text-[10px] text-black/25 font-mono">⌘K</span>
+          <>
+            {/* Resize Handle (Right) */}
+             {!isMobileDevice && (
+               <div
+                  onMouseDown={() => setIsResizingFocus(true)}
+                  className="w-1.5 z-[51] cursor-col-resize hover:bg-black/10 active:bg-black/20 transition-colors flex-shrink-0 relative"
+                  title="Drag to resize assistant"
+               />
+             )}
+            <motion.div
+              initial={{ x: 400, opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+              exit={{ x: 400, opacity: 0 }}
+              transition={{ type: "spring", damping: 30, stiffness: 300 }}
+              style={{ width: focusWidth }}
+              className="h-full border-l border-black/[0.08] bg-white flex flex-col z-50 flex-shrink-0"
+              data-focus-sidebar="true"
+            >
+            {/* Header - BIGGER */}
+            <div className="h-14 border-b border-black/[0.06] flex items-center justify-between px-5">
+              <div className="flex items-center gap-3">
+                <span className="text-base font-semibold text-black/70">Assistant</span>
+                <span className="text-xs text-black/30 font-mono bg-black/[0.03] px-2 py-0.5 rounded">⌘K</span>
               </div>
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-2">
                 <select
                   value={focusModel}
                   onMouseDown={(e) => e.stopPropagation()} // Prevent selection clearing
@@ -1916,7 +2019,7 @@ export default function AppPage() {
                     e.stopPropagation();
                     setFocusModel(e.target.value as typeof focusModel);
                   }}
-                  className="text-[10px] text-black/40 bg-transparent border-none focus:outline-none cursor-pointer hover:text-black/60"
+                  className="text-sm text-black/45 bg-transparent border-none focus:outline-none cursor-pointer hover:text-black/60"
                 >
                   <option value="fast">fast</option>
                   <option value="balanced">balanced</option>
@@ -1924,31 +2027,31 @@ export default function AppPage() {
                 </select>
                 <button
                   onClick={() => setShowFocusMode(false)}
-                  className="p-1 hover:bg-black/[0.04] rounded transition-colors"
+                  className="p-1.5 hover:bg-black/[0.04] rounded-lg transition-colors"
                 >
-                  <X size={14} className="text-black/30" />
+                  <X size={18} className="text-black/35" />
                 </button>
               </div>
             </div>
 
-            {/* Usage Limits - Prominent Display */}
+            {/* Usage Limits - BIGGER */}
             {!isPro ? (
-              <div className="px-3 py-2 border-b border-black/[0.04] bg-black/[0.01]">
-                <div className="flex items-center justify-between mb-1.5">
-                  <span className="text-[10px] font-medium text-black/50 uppercase tracking-wider">Usage Limits</span>
+              <div className="px-5 py-4 border-b border-black/[0.04] bg-black/[0.01]">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-xs font-semibold text-black/50 uppercase tracking-wider">Usage Limits</span>
                   {Object.entries(FREE_LIMITS).some(([action]) => {
                     const remaining = getRemainingUses(action);
                     return remaining !== Infinity && remaining < FREE_LIMITS[action];
                   }) && (
                     <button
                       onClick={() => setShowProModal(true)}
-                      className="text-[10px] text-black/40 hover:text-black/60 underline"
+                      className="text-xs text-black/45 hover:text-black/65 underline"
                     >
                       Upgrade
                     </button>
                   )}
                 </div>
-                <div className="grid grid-cols-3 gap-1.5 text-[9px]">
+                <div className="grid grid-cols-3 gap-2 text-xs">
                   {focusActionButtons.map((item) => {
                     const remaining = getRemainingUses(item.action);
                     const limit = FREE_LIMITS[item.action] || 0;
@@ -1959,36 +2062,36 @@ export default function AppPage() {
                       <div
                         key={item.action}
                         className={cn(
-                          "px-1.5 py-1 rounded border",
+                          "px-2.5 py-2 rounded-lg border",
                           isLow
-                            ? "bg-rose-50/50 border-rose-200/50 text-rose-600"
-                            : "bg-white/50 border-black/[0.06] text-black/60"
+                            ? "bg-rose-50/60 border-rose-200/60 text-rose-600"
+                            : "bg-white/60 border-black/[0.08] text-black/60"
                         )}
                       >
-                        <div className="font-medium truncate">{item.label}</div>
+                        <div className="font-medium truncate text-[11px]">{item.label}</div>
                         {showCount ? (
-                          <div className="text-[8px] text-black/40">
+                          <div className="text-[10px] text-black/40 mt-0.5">
                             {used}/{limit}
                           </div>
                         ) : (
-                          <div className="text-[8px] text-emerald-600">∞</div>
+                          <div className="text-[10px] text-emerald-600 mt-0.5">∞</div>
                         )}
                       </div>
                     );
                   })}
                   <div className={cn(
-                    "px-1.5 py-1 rounded border",
+                    "px-2.5 py-2 rounded-lg border",
                     getRemainingUses("chat") === Infinity
-                      ? "bg-white/50 border-black/[0.06] text-black/60"
+                      ? "bg-white/60 border-black/[0.08] text-black/60"
                       : (getRemainingUses("chat") <= 1
-                          ? "bg-rose-50/50 border-rose-200/50 text-rose-600"
-                          : "bg-white/50 border-black/[0.06] text-black/60")
+                          ? "bg-rose-50/60 border-rose-200/60 text-rose-600"
+                          : "bg-white/60 border-black/[0.08] text-black/60")
                   )}>
-                    <div className="font-medium truncate">Chat</div>
+                    <div className="font-medium truncate text-[11px]">Chat</div>
                     {getRemainingUses("chat") === Infinity ? (
-                      <div className="text-[8px] text-emerald-600">∞</div>
+                      <div className="text-[10px] text-emerald-600 mt-0.5">∞</div>
                     ) : (
-                      <div className="text-[8px] text-black/40">
+                      <div className="text-[10px] text-black/40 mt-0.5">
                         {focusUsage.chat || 0}/{FREE_LIMITS.chat}
                       </div>
                     )}
@@ -1996,13 +2099,13 @@ export default function AppPage() {
                 </div>
               </div>
             ) : (
-              <div className="px-3 py-2 border-b border-black/[0.04]">
-                <div className="flex items-center gap-2">
-                  <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-gradient-to-r from-amber-100 to-orange-100 border border-amber-200/50">
-                    <Crown size={10} className="text-amber-600" />
-                    <span className="text-[10px] font-semibold text-amber-700">Pro</span>
+              <div className="px-5 py-4 border-b border-black/[0.04]">
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-gradient-to-r from-amber-100 to-orange-100 border border-amber-200/50">
+                    <Crown size={14} className="text-amber-600" />
+                    <span className="text-xs font-semibold text-amber-700">Pro</span>
                   </div>
-                  <span className="text-[10px] text-black/40">
+                  <span className="text-sm text-black/45">
                     {premiumPromptsUsed >= premiumPromptsLimit
                       ? "Free models (unlimited)"
                       : `${premiumPromptsLimit - premiumPromptsUsed} premium prompts`}
@@ -2011,62 +2114,138 @@ export default function AppPage() {
               </div>
             )}
 
-            {/* Actions - compact row */}
-            <div className="px-3 py-2 border-b border-black/[0.04]">
-              <div className="flex flex-wrap gap-1">
-                {focusActionButtons.map((item) => {
-                  const remaining = getRemainingUses(item.action);
-                  const allowed = remaining > 0 || remaining === Infinity;
-                  const showCount = remaining !== Infinity;
-                  return (
+            {/* Actions - BIGGER buttons */}
+            <div className="px-5 py-4 border-b border-black/[0.04]">
+              <div className="flex items-center justify-between mb-3">
+                 <h4 className="text-[11px] font-semibold uppercase tracking-wider text-black/30">Actions</h4>
+                 <div className="flex bg-black/[0.04] p-0.5 rounded-lg">
                     <button
-                      key={item.action}
-                      onMouseDown={(e) => e.preventDefault()} // Prevent selection clearing
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        if (selectedText) {
-                          handleFocusAction(item.action, selectedText);
-                        }
-                      }}
-                      disabled={!selectedText || isFocusLoading || !allowed}
-                      className={cn(
-                        "px-2 py-1 text-[11px] rounded transition-all",
-                        !allowed
-                          ? "text-black/15 cursor-not-allowed"
-                          : selectedText && !isFocusLoading
-                            ? "text-black/50 hover:text-black/80 hover:bg-black/[0.04]"
-                            : "text-black/20 cursor-not-allowed"
-                      )}
+                      onClick={() => setFocusViewMode("text")}
+                      className={`px-2 py-0.5 rounded-md text-[10px] font-medium transition-all ${focusViewMode === "text" ? "bg-white shadow-sm text-black" : "text-black/40 hover:text-black/60"}`}
                     >
-                      {item.label}
-                      {allowed && showCount && <span className="text-black/20 ml-0.5">{remaining}</span>}
+                      Text
                     </button>
-                  );
-                })}
+                    <button
+                      onClick={() => setFocusViewMode("icons")}
+                      className={`px-2 py-0.5 rounded-md text-[10px] font-medium transition-all ${focusViewMode === "icons" ? "bg-white shadow-sm text-black" : "text-black/40 hover:text-black/60"}`}
+                    >
+                      Icons
+                    </button>
+                 </div>
               </div>
+              
+              <AnimatePresence mode="wait">
+                {focusViewMode === "text" ? (
+                  <motion.div 
+                    key="text-mode"
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.95 }}
+                    transition={{ duration: 0.2 }}
+                    className="flex flex-wrap gap-2"
+                  >
+                    {focusActionButtons.map((item) => {
+                      const remaining = getRemainingUses(item.action);
+                      const allowed = remaining > 0 || remaining === Infinity;
+                      const showCount = remaining !== Infinity;
+                      return (
+                        <button
+                          key={item.action}
+                          onMouseDown={(e) => e.preventDefault()} // Prevent selection clearing
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            if (selectedText) {
+                              handleFocusAction(item.action, selectedText);
+                            }
+                          }}
+                          disabled={!selectedText || isFocusLoading || !allowed}
+                          className={cn(
+                            "px-3 py-1.5 text-sm rounded-lg transition-all",
+                            !allowed
+                              ? "text-black/20 cursor-not-allowed"
+                              : selectedText && !isFocusLoading
+                                ? "bg-black/[0.03] text-black/70 hover:text-black hover:bg-black/[0.06]"
+                                : "text-black/25 cursor-not-allowed"
+                          )}
+                        >
+                          {item.label}
+                          {allowed && showCount && <span className="text-black/25 ml-1">{remaining}</span>}
+                        </button>
+                      );
+                    })}
+                  </motion.div>
+                ) : (
+                  <motion.div 
+                     key="icon-mode"
+                     initial={{ opacity: 0, scale: 0.95 }}
+                     animate={{ opacity: 1, scale: 1 }}
+                     exit={{ opacity: 0, scale: 0.95 }}
+                     transition={{ duration: 0.2 }}
+                     layout 
+                     className="flex flex-wrap gap-2"
+                  >
+                    {focusActionButtons.map((item) => {
+                      const remaining = getRemainingUses(item.action);
+                      const allowed = remaining > 0 || remaining === Infinity;
+                      const Icon = focusActionIcons[item.action] || Sparkles;
+                      return (
+                        <motion.button
+                          layout
+                          key={item.action}
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            if (selectedText) {
+                              handleFocusAction(item.action, selectedText);
+                            }
+                          }}
+                          disabled={!selectedText || isFocusLoading || !allowed}
+                          whileHover={allowed && selectedText ? { scale: 1.05 } : {}}
+                          whileTap={allowed && selectedText ? { scale: 0.95 } : {}}
+                          className={cn(
+                            "w-9 h-9 flex items-center justify-center rounded-lg border transition-all",
+                            !allowed
+                              ? "bg-gray-50 border-gray-100 opacity-50 cursor-not-allowed"
+                              : selectedText && !isFocusLoading
+                                ? "bg-white border-black/[0.06] shadow-sm hover:shadow-md hover:border-black/[0.1]"
+                                : "bg-gray-50 border-gray-100 opacity-60 cursor-not-allowed"
+                          )}
+                          title={item.label}
+                        >
+                           <Icon size={18} className={cn(
+                             "mb-0", 
+                             selectedText && !isFocusLoading && allowed ? "text-black/70" : "text-black/30"
+                           )} />
+                        </motion.button>
+                      );
+                    })}
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
 
-            {/* Chat area */}
+            {/* Chat area - BIGGER */}
             <div
               ref={focusChatRef}
               className="flex-1 overflow-y-auto"
             >
               {focusChat.length === 0 ? (
-                <div className="h-full flex flex-col items-center justify-center px-8 text-center">
-                  <p className="text-[13px] text-black/30 leading-relaxed">
+                <div className="h-full flex flex-col items-center justify-center px-10 text-center">
+                  <p className="text-base text-black/35 leading-relaxed">
                     Select text and choose an action above, or type a question below.
                   </p>
                 </div>
               ) : (
-                <div className="p-3 space-y-3">
+                <div className="p-5 space-y-4">
                   {focusChat.map((msg, i) => (
                     <div key={i}>
                       {msg.role === "user" ? (
-                        <p className="text-[11px] text-black/30 mb-1">{msg.content}</p>
+                        <p className="text-sm text-black/40 mb-2">{msg.content}</p>
                       ) : (
-                        <div className="space-y-2">
-                          <div className="text-[13px] text-black/70 leading-relaxed whitespace-pre-wrap">
+                        <div className="space-y-3">
+                          <div className="text-base text-black/70 leading-relaxed whitespace-pre-wrap">
                             {msg.content}
                           </div>
                           {/* Upgrade prompt for free users - show after every assistant response */}
@@ -2202,39 +2381,39 @@ export default function AppPage() {
               )}
             </div>
 
-            {/* Input - minimal */}
-            <form onSubmit={handleFocusChatSubmit} className="p-3 border-t border-black/[0.06]">
+            {/* Input - BIGGER */}
+            <form onSubmit={handleFocusChatSubmit} className="p-5 border-t border-black/[0.06]">
               {!isActionAllowed('chat') ? (
-                  <div className="text-center py-3 px-4">
-                      <p className="text-[11px] text-black/50 mb-2">Free chat limit reached.</p>
-                      <button 
+                  <div className="text-center py-4 px-5">
+                      <p className="text-sm text-black/50 mb-3">Free chat limit reached.</p>
+                      <button
                         type="button"
                         onClick={() => {
                           setLimitReachedAction('chat');
                           setShowLimitReachedModal(true);
                         }}
-                        className="text-[11px] font-semibold text-black underline hover:text-black/70"
+                        className="text-sm font-semibold text-black underline hover:text-black/70"
                       >
                         Upgrade to continue
                       </button>
                   </div>
               ) : (
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-3 bg-black/[0.02] rounded-xl px-4 py-3">
                     <input
                     type="text"
                     value={focusInput}
                     onChange={(e) => setFocusInput(e.target.value)}
                     placeholder="Ask anything..."
-                    className="flex-1 bg-transparent text-[13px] text-black/80 placeholder:text-black/25 focus:outline-none"
+                    className="flex-1 bg-transparent text-base text-black/80 placeholder:text-black/30 focus:outline-none"
                     />
                     <button
                     type="submit"
                     disabled={!focusInput.trim() || isFocusLoading}
                     className={cn(
-                        "text-[11px] px-2 py-1 rounded transition-all",
+                        "text-lg px-3 py-1.5 rounded-lg transition-all",
                         focusInput.trim() && !isFocusLoading
-                        ? "text-black/60 hover:text-black"
-                        : "text-black/15"
+                        ? "text-black/60 hover:text-black hover:bg-black/[0.04]"
+                        : "text-black/20"
                     )}
                     >
                     ↵
@@ -2242,19 +2421,20 @@ export default function AppPage() {
                 </div>
               )}
             </form>
-            
+
             {/* Footer with clear */}
             {focusChat.length > 0 && (
-              <div className="px-3 py-2 border-t border-black/[0.04]">
+              <div className="px-5 py-3 border-t border-black/[0.04]">
                 <button
                   onClick={() => setFocusChat([])}
-                  className="text-[10px] text-black/25 hover:text-black/50 transition-colors"
+                  className="text-sm text-black/30 hover:text-black/55 transition-colors"
                 >
                   Clear conversation
                 </button>
               </div>
             )}
           </motion.div>
+          </>
         )}
       </AnimatePresence>
 

@@ -55,10 +55,10 @@ const ACTION_PROMPTS: Record<AssistAction, (text: string, context?: string, grap
 Nodes (key concepts):
 ${graphStructure.nodes.map(n => `• ${n.label} [${n.type}]`).join('\n')}
 ${graphStructure.edges && graphStructure.edges.length > 0 ? `\nConnections:\n${graphStructure.edges.map(e => {
-  const fromNode = graphStructure.nodes.find(n => n.id === e.from);
-  const toNode = graphStructure.nodes.find(n => n.id === e.to);
-  return `• ${fromNode?.label || e.from} → ${toNode?.label || e.to}`;
-}).join('\n')}` : ''}
+        const fromNode = graphStructure.nodes.find(n => n.id === e.from);
+        const toNode = graphStructure.nodes.find(n => n.id === e.to);
+        return `• ${fromNode?.label || e.from} → ${toNode?.label || e.to}`;
+      }).join('\n')}` : ''}
 
 [DOCUMENT TEXT:]
 ${context || 'No additional context.'}
@@ -71,17 +71,17 @@ ${text}`;
     }
     return prompt;
   },
-  fact_check: (text) => `Verify the factual accuracy of this statement. If accurate, confirm with a brief note. If inaccurate or questionable, identify the specific errors and provide accurate information with credible sources if applicable. Be objective and precise.\n\nStatement: "${text}"`,
-  synonyms: (text) => `Provide 5 alternative phrasings that maintain the exact meaning. Vary formality levels (formal, professional, casual, academic, concise). List only the alternatives, no explanations.\n\nOriginal: "${text}"`,
-  expand: (text, context) => `Expand this idea with substantive detail, relevant examples, and supporting evidence. Maintain the author's voice and writing style. Be thorough but focused.\n\nContext: ${context || "N/A"}\n\nText to expand: "${text}"`,
-  simplify: (text) => `Rewrite this for clarity and accessibility. Use shorter sentences, simpler vocabulary, and direct language. Preserve all essential meaning.\n\nOriginal: "${text}"`,
-  explain: (text) => `Explain this concept clearly and accurately for a general audience. Use precise terminology with brief definitions. Be comprehensive yet concise.\n\nText: "${text}"`,
+  fact_check: (text) => `Verify the factual accuracy of this statement. If accurate, confirm with "Accurate: [brief note]". If inaccurate, start with "Inaccurate: [correction]". Be objective and concise. NO preamble.\n\nStatement: "${text}"`,
+  synonyms: (text) => `Provide 5 alternative phrasings. List ONLY the alternatives. No conversational filler.\n\nOriginal: "${text}"`,
+  expand: (text, context) => `Expand this idea with substantive detail. Start directly with the expanded text. NO "Here is an expansion..." or similar.\n\nContext: ${context || "N/A"}\n\nText to expand: "${text}"`,
+  simplify: (text) => `Rewrite this for clarity. Output ONLY the simplified text. NO preamble.\n\nOriginal: "${text}"`,
+  explain: (text) => `Explain this concept clearly and accurately. Start directly with the explanation. NO "Sure" or "Here is...".\n\nText: "${text}"`,
   improve: (text, context) => `Improve this writing's clarity, precision, grammar, and flow. Enhance persuasiveness where appropriate. Return only the revised text, no commentary.\n\nContext: ${context || "N/A"}\n\nText to improve: "${text}"`,
   paraphrase_preserve: (text, context, graphStructure) => {
     const graphContext = graphStructure?.nodes
       ? `\n\nArgument Graph Nodes:\n${graphStructure.nodes.map(n => `- ${n.label} [${n.type}]`).join('\n')}`
       : '';
-    return `Paraphrase this text while preserving the semantic nodes and claims present in it. Maintain the logical structure and key assertions, but improve clarity and flow.\n\nContext: ${context || "N/A"}${graphContext}\n\nText to paraphrase: "${text}"`;
+    return `Paraphrase this text. Output ONLY the paraphrased version. NO intro/outro.\n\nContext: ${context || "N/A"}${graphContext}\n\nText to paraphrase: "${text}"`;
   },
   find_similes: (text, context, graphStructure) => {
     const graphContext = graphStructure?.nodes
@@ -106,7 +106,7 @@ ${existingNodes}
     const graphContext = graphStructure?.nodes
       ? `\n\nExisting Argument Structure:\n${graphStructure.nodes.map(n => `- ${n.label} [${n.type}]`).join('\n')}`
       : '';
-    return `Generate thoughtful counterarguments or alternative perspectives to this claim. Consider edge cases, opposing viewpoints, and potential weaknesses in the reasoning.\n\nContext: ${context || "N/A"}${graphContext}\n\nClaim to challenge: "${text}"`;
+    return `Generate 2-3 thoughtful counterarguments. Start directly with the points (e.g., "1. [Point]"). NO "We are going to challenge..." or "Here are...".\n\nContext: ${context || "N/A"}${graphContext}\n\nClaim to challenge: "${text}"`;
   },
 };
 
@@ -129,7 +129,7 @@ export async function POST(req: NextRequest) {
     let usePremiumModel = false;
     let premiumPromptsUsed = 0;
     let userUsage = null;
-    
+
     if (userId) {
       userUsage = await getUserUsage(userId);
       // Only check premium limits for "chat" action
@@ -138,14 +138,14 @@ export async function POST(req: NextRequest) {
         const now = new Date();
         const resetDate = userUsage.premium_reset_date ? new Date(userUsage.premium_reset_date) : now;
         const shouldReset = now.getTime() > resetDate.getTime();
-        
+
         if (shouldReset) {
           // Reset monthly counter
           premiumPromptsUsed = 0;
         } else {
           premiumPromptsUsed = userUsage.premium_prompts_used || 0;
         }
-        
+
         const limit = userUsage.premium_prompts_limit || PREMIUM_PROMPTS_LIMIT;
         usePremiumModel = premiumPromptsUsed < limit;
       }
@@ -170,18 +170,18 @@ export async function POST(req: NextRequest) {
         messages: [
           {
             role: "system",
-            content: `You are a professional writing and reasoning assistant for Eliee, a thinking tool that helps users structure their arguments.
+            content: `You are a writing assistant for Eliee.
+            
+EXTREMELY IMPORTANT: Output ONLY the requested content.
+- NO conversational filler (e.g., "Here is the paraphrased text", "I have analyzed...", "Sure!").
+- NO meta-commentary.
+- Go STRAIGHT to the point.
+- If asked for a list, provide just the list.
+- If asked to rewrite, provide just the rewrite.
 
-${graphStructure?.nodes && graphStructure.nodes.length > 0 ? `You have access to the user's REASONING GRAPH - a visual map of their document's logical structure. You can:
-- Reference specific nodes (claims, assumptions, evidence, decisions, risks) from their graph
-- Help them extract implicit claims and turn them into explicit graph nodes
-- Suggest how to reorganize their argument by manipulating the graph structure
-- Identify logical gaps or missing connections between nodes
-- Help rewrite sections based on rearranged graph nodes
+${graphStructure?.nodes && graphStructure.nodes.length > 0 ? `You have access to the user's REASONING GRAPH. Reference specific nodes (claims, evidence) where relevant.` : ''}
 
-When you reference the graph, be specific about which nodes you're discussing.` : ''}
-
-Be precise, substantive, and focused on improving the clarity and logical structure of their thinking. Address the user directly as "you". Avoid vague platitudes - give concrete, actionable suggestions.`
+Be precise and concise.`
           },
           { role: "user", content: prompt }
         ],
@@ -196,7 +196,7 @@ Be precise, substantive, and focused on improving the clarity and logical struct
     }
 
     const result = data.choices?.[0]?.message?.content || "";
-    
+
     // Update premium prompt usage ONLY for "chat" action when premium model was used
     let premiumPromptsRemaining = undefined;
     if (userId && userUsage?.is_pro && action === "chat") {
@@ -210,8 +210,8 @@ Be precise, substantive, and focused on improving the clarity and logical struct
         premiumPromptsRemaining = Math.max(0, limit - premiumPromptsUsed);
       }
     }
-    
-    return NextResponse.json({ 
+
+    return NextResponse.json({
       result,
       model: selectedModel.split("/")[1]?.split(":")[0] || model,
       isPremium: usePremiumModel,

@@ -116,6 +116,7 @@
     background: #3b82f6 !important;
     color: white !important;
   }
+
   ::-moz-selection {
     background: #3b82f6 !important;
     color: white !important;
@@ -183,4 +184,21 @@
 .no-scrollbar {
   -ms-overflow-style: none;
   scrollbar-width: none;
+}
+
+/* Radial gradient utility for ambient glows */
+.bg-gradient-radial {
+  background: radial-gradient(circle, var(--tw-gradient-stops));
+}
+
+/* Smooth scroll for the entire page */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Enhanced focus states */
+button:focus-visible,
+a:focus-visible {
+  outline: 2px solid rgba(59, 130, 246, 0.5);
+  outline-offset: 2px;
 }
