@@ -23,6 +23,35 @@ export default function SettingsPage() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteInput, setDeleteInput] = useState("");
   const [isDeleting, setIsDeleting] = useState(false);
+  const [billingInfo, setBillingInfo] = useState<{ isPro: boolean; renewalDate: string | null; cancelAtPeriodEnd: boolean } | null>(null);
+  const [loadingBilling, setLoadingBilling] = useState(true);
+
+  useEffect(() => {
+    if (session) {
+      fetch("/api/stripe/status")
+        .then((res) => res.json())
+        .then((data) => {
+          setBillingInfo(data);
+          setLoadingBilling(false);
+        })
+        .catch((err) => {
+          console.error("Failed to load billing info:", err);
+          setLoadingBilling(false);
+        });
+    }
+  }, [session]);
+
+  const handleManageSubscription = async () => {
+    try {
+      const res = await fetch("/api/stripe/create-portal", { method: "POST" });
+      const data = await res.json();
+      if (data.url) {
+        window.location.href = data.url;
+      }
+    } catch (e) {
+      console.error("Failed to create portal session:", e);
+    }
+  };
 
   useEffect(() => {
     if (!isPending && !session) {
@@ -126,6 +155,62 @@ export default function SettingsPage() {
               )}
             </div>
           </div>
+        </motion.div>
+
+        {/* Subscription Section */}
+        <motion.div 
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.05 }}
+          className="bg-white rounded-2xl border border-black/[0.06] p-6 mb-6"
+        >
+          <h2 className="text-sm font-semibold text-black/60 uppercase tracking-wider mb-4">Subscription</h2>
+          
+          {loadingBilling ? (
+            <div className="flex items-center gap-2 text-black/40 text-sm">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              Loading subscription details...
+            </div>
+          ) : billingInfo?.isPro ? (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between p-4 bg-[#fafafa] rounded-xl border border-black/[0.04]">
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="font-semibold text-black/80">Pro Plan</span>
+                    <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 text-[10px] font-bold uppercase tracking-wider rounded-full">Active</span>
+                  </div>
+                  {billingInfo.renewalDate && (
+                    <p className="text-sm text-black/50">
+                      {billingInfo.cancelAtPeriodEnd ? "Expires" : "Renews"} on {new Date(billingInfo.renewalDate).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}
+                    </p>
+                  )}
+                </div>
+              </div>
+              
+              <button
+                onClick={handleManageSubscription}
+                className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-black text-white hover:bg-black/80 transition-all font-medium text-sm"
+              >
+                Manage Subscription / Cancel
+              </button>
+              <p className="text-xs text-center text-black/30">
+                Update payment method, view invoices, or cancel subscription via Stripe safe portal.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+               <div className="p-4 bg-[#fafafa] rounded-xl border border-black/[0.04] text-center">
+                 <p className="font-medium text-black/80 mb-1">Free Plan</p>
+                 <p className="text-sm text-black/50">You are currently on the free tier.</p>
+               </div>
+               <Link
+                 href="/pricing"
+                 className="block w-full text-center px-4 py-3 rounded-xl bg-gradient-to-r from-violet-500 to-indigo-500 text-white hover:opacity-90 transition-all font-medium text-sm"
+               >
+                 Upgrade to Pro
+               </Link>
+            </div>
+          )}
         </motion.div>
 
         {/* Sign Out */}

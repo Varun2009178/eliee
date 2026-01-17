@@ -187,7 +187,7 @@ export default function AppPage() {
     simplify: 1,
     explain: 1,
     improve: 1,
-    chat: 3,
+    chat: Infinity,
   };
 
   // Load usage from Supabase (reload on session change and on mount)
@@ -848,6 +848,9 @@ export default function AppPage() {
           .block { margin-bottom: 16px; }
           .block-label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 4px; }
           .block-content { font-size: 15px; line-height: 1.7; color: #333; white-space: pre-wrap; }
+          @media print {
+            body { padding: 40px; }
+          }
         </style></head>
         <body>
           <h1>${docTitle}</h1>
@@ -856,12 +859,45 @@ export default function AppPage() {
         </body>
       </html>
     `;
-    const printWindow = window.open('', '_blank');
-    if (printWindow) {
-      printWindow.document.write(printContent);
-      printWindow.document.close();
-      printWindow.print();
+
+    // Use a hidden iframe to prevent popup blockers
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'absolute';
+    iframe.style.width = '0px';
+    iframe.style.height = '0px';
+    iframe.style.border = 'none';
+    document.body.appendChild(iframe);
+
+    const doc = iframe.contentDocument || iframe.contentWindow?.document;
+    if (doc) {
+      doc.write(printContent);
+      doc.close();
+
+      // Wait for content to load then print
+      iframe.onload = () => {
+        try {
+          iframe.contentWindow?.focus();
+          iframe.contentWindow?.print();
+        } catch (e) {
+          console.error("Print failed:", e);
+        }
+        // Cleanup after print dialog usage (delay to allow dialog to open)
+        setTimeout(() => {
+            document.body.removeChild(iframe);
+        }, 2000);
+      };
+      
+      // Fallback if onload doesn't fire immediately (sometimes needed)
+      if (iframe.contentWindow) {
+         // Some browsers fire onload instantly if write is sync
+         setTimeout(() => {
+           if(document.body.contains(iframe)) {
+              // Trigger manually if needed or just let the onload handle it
+           }
+         }, 500);
+      }
     }
+    
     setShowExportMenu(false);
   };
 
@@ -1502,9 +1538,16 @@ export default function AppPage() {
                 posthog.capture("upgrade_modal_opened", { location: "sidebar" });
                 setShowProModal(true);
               }}
-              className="w-full flex items-center justify-center gap-3 px-5 py-4 rounded-xl bg-gradient-to-r from-violet-500 to-purple-500 text-white text-base font-semibold hover:from-violet-600 hover:to-purple-600 transition-all shadow-sm"
+              className="w-full relative group overflow-hidden rounded-xl p-[1px] shadow-lg shadow-violet-500/20 hover:shadow-violet-500/40 transition-all duration-300 hover:scale-[1.02]"
             >
-              <Crown size={20} /> Upgrade to Pro
+              <div className="absolute inset-0 bg-gradient-to-r from-violet-500 via-fuchsia-500 to-indigo-500" />
+              <div className="relative flex items-center justify-center gap-3 px-5 py-4 bg-[#0a0a0a] rounded-[11px] group-hover:bg-[#111] transition-colors">
+                <div className="relative">
+                  <div className="absolute inset-0 bg-violet-500 blur-lg opacity-40 group-hover:opacity-60 transition-opacity" />
+                  <Crown size={20} className="relative text-violet-200 group-hover:text-white transition-colors" />
+                </div>
+                <span className="text-white font-semibold tracking-wide text-[15px] group-hover:text-white/90">Upgrade to Pro</span>
+              </div>
             </button>
           )}
         </div>
