@@ -1505,14 +1505,13 @@ export default function AppPage() {
               <button
                 onClick={handleToggleFocusMode}
                 className={cn(
-                  "w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg text-[13px] font-medium transition-colors",
+                  "w-full py-3 rounded-lg text-[13px] font-medium transition-colors text-center",
                   showFocusMode
                     ? "bg-black text-white"
                     : "bg-black/[0.04] text-black/70 hover:bg-black/[0.06]"
                 )}
               >
-                <span>Focus Mode</span>
-                <span className="text-[10px] text-black/30 ml-0.5">⌘K</span>
+                Focus Mode
               </button>
             ) : null}
 
@@ -1537,7 +1536,7 @@ export default function AppPage() {
                 posthog.capture("upgrade_modal_opened", { location: "sidebar" });
                 setShowProModal(true);
               }}
-              className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg bg-black text-white text-[13px] font-medium hover:bg-black/90 transition-colors"
+              className="w-full py-3 rounded-lg bg-black text-white text-[13px] font-medium hover:bg-black/90 transition-colors text-center"
             >
               Upgrade to Pro
             </button>
