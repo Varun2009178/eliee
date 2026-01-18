@@ -70,34 +70,59 @@ export default function TermsPage() {
 
           <section>
             <h2 className="text-lg font-semibold text-black mb-3">7. Subscription and Payments</h2>
-            <p className="leading-relaxed">
-              Some features require a paid subscription. Payments are processed securely through our payment provider. Subscriptions renew automatically unless cancelled. Refunds are available within 14 days of purchase if the Service has not been substantially used.
+            <p className="leading-relaxed mb-4">
+              Some features require a paid subscription. Payments are processed securely through our payment provider (Stripe). Subscriptions renew automatically unless cancelled. Refunds are available within 14 days of purchase if the Service has not been substantially used.
             </p>
+            <div className="bg-[#faf9f7] rounded-lg p-4 border border-black/[0.06]">
+              <h3 className="text-sm font-semibold text-black mb-2">Cancellation Policy</h3>
+              <ul className="list-disc pl-5 space-y-2 text-sm">
+                <li>You may cancel your subscription at any time through the Settings page in your account.</li>
+                <li>Upon cancellation, you will retain Pro access until the end of your current billing period.</li>
+                <li>No partial refunds are provided for unused time within a billing period.</li>
+                <li>You can resubscribe at any time after cancellation.</li>
+              </ul>
+            </div>
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold text-black mb-3">8. Limitation of Liability</h2>
+            <h2 className="text-lg font-semibold text-black mb-3">8. Promotional Codes and Coupons</h2>
+            <p className="leading-relaxed mb-4">
+              From time to time, we may offer promotional codes or coupons that provide discounts on subscription fees.
+            </p>
+            <div className="bg-amber-50 rounded-lg p-4 border border-amber-100">
+              <h3 className="text-sm font-semibold text-amber-900 mb-2">Important Billing Information</h3>
+              <ul className="list-disc pl-5 space-y-2 text-sm text-amber-800">
+                <li><strong>Automatic Renewal:</strong> After any promotional or discounted period ends, your subscription will automatically renew at the standard rate of $9.99/month.</li>
+                <li><strong>Cancel Before Renewal:</strong> If you do not wish to be charged the standard rate after your promotional period, you must cancel your subscription before the renewal date.</li>
+                <li><strong>Billing Date:</strong> Your renewal date is displayed in Settings. Cancel before this date to avoid charges.</li>
+                <li><strong>Pro Access:</strong> Even after cancelling, you will keep Pro features until your current billing period ends.</li>
+              </ul>
+            </div>
+          </section>
+
+          <section>
+            <h2 className="text-lg font-semibold text-black mb-3">9. Limitation of Liability</h2>
             <p className="leading-relaxed">
               The Service is provided "as is" without warranties of any kind. We are not liable for any indirect, incidental, or consequential damages arising from your use of the Service.
             </p>
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold text-black mb-3">9. Termination</h2>
+            <h2 className="text-lg font-semibold text-black mb-3">10. Termination</h2>
             <p className="leading-relaxed">
-              We may terminate or suspend your access to the Service at any time for violations of these terms. You may terminate your account at any time by contacting support.
+              We may terminate or suspend your access to the Service at any time for violations of these terms. You may terminate your account at any time through the Settings page or by contacting support.
             </p>
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold text-black mb-3">10. Changes to Terms</h2>
+            <h2 className="text-lg font-semibold text-black mb-3">11. Changes to Terms</h2>
             <p className="leading-relaxed">
               We may update these terms from time to time. We will notify you of significant changes via email or through the Service. Continued use after changes constitutes acceptance.
             </p>
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold text-black mb-3">11. Contact</h2>
+            <h2 className="text-lg font-semibold text-black mb-3">12. Contact</h2>
             <p className="leading-relaxed">
               For questions about these Terms, please contact us at <a href="mailto:varun@teyra.app" className="text-black underline">varun@teyra.app</a>.
             </p>

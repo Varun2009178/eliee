@@ -25,6 +25,8 @@ export default function SettingsPage() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [billingInfo, setBillingInfo] = useState<{ isPro: boolean; renewalDate: string | null; cancelAtPeriodEnd: boolean } | null>(null);
   const [loadingBilling, setLoadingBilling] = useState(true);
+  const [managingSubscription, setManagingSubscription] = useState(false);
+  const [subscriptionError, setSubscriptionError] = useState<string | null>(null);
 
   useEffect(() => {
     if (session) {
@@ -42,14 +44,25 @@ export default function SettingsPage() {
   }, [session]);
 
   const handleManageSubscription = async () => {
+    setManagingSubscription(true);
+    setSubscriptionError(null);
     try {
       const res = await fetch("/api/stripe/create-portal", { method: "POST" });
       const data = await res.json();
       if (data.url) {
         window.location.href = data.url;
+      } else if (data.error) {
+        setSubscriptionError(data.error === "No customer found"
+          ? "No subscription found. If you just subscribed, please refresh the page."
+          : `Error: ${data.error}`);
+      } else {
+        setSubscriptionError("Unable to open subscription portal. Please try again.");
       }
     } catch (e) {
       console.error("Failed to create portal session:", e);
+      setSubscriptionError("Failed to connect to subscription portal. Please try again.");
+    } finally {
+      setManagingSubscription(false);
     }
   };
 
@@ -186,16 +199,38 @@ export default function SettingsPage() {
                   )}
                 </div>
               </div>
-              
+
               <button
                 onClick={handleManageSubscription}
-                className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-black text-white hover:bg-black/80 transition-all font-medium text-sm"
+                disabled={managingSubscription}
+                className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-black text-white hover:bg-black/80 transition-all font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Manage Subscription / Cancel
+                {managingSubscription ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Opening portal...
+                  </>
+                ) : (
+                  "Manage Subscription / Cancel"
+                )}
               </button>
+
+              {subscriptionError && (
+                <div className="p-3 bg-rose-50 border border-rose-100 rounded-lg">
+                  <p className="text-sm text-rose-600">{subscriptionError}</p>
+                </div>
+              )}
+
               <p className="text-xs text-center text-black/30">
-                Update payment method, view invoices, or cancel subscription via Stripe safe portal.
+                Update payment method, view invoices, or cancel subscription via Stripe portal.
               </p>
+
+              {/* Coupon code billing notice */}
+              <div className="p-4 bg-amber-50 border border-amber-100 rounded-xl">
+                <p className="text-xs text-amber-800 leading-relaxed">
+                  <strong>Used a coupon code?</strong> After your promotional period ends, you will be automatically billed $9.99/month at the next billing cycle. To avoid future charges, cancel your subscription before your renewal date shown above. You'll keep Pro access until the end of your current billing period.
+                </p>
+              </div>
             </div>
           ) : (
             <div className="space-y-4">

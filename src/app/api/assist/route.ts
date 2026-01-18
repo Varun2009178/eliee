@@ -4,7 +4,24 @@ import { getUserUsage, updateUserUsage } from "@/lib/db";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-type AssistAction = "chat" | "fact_check" | "synonyms" | "expand" | "simplify" | "explain" | "improve" | "paraphrase_preserve" | "find_similes" | "decompose_claims" | "counterargument" | "check_logic";
+type AssistAction = "chat" | "fact_check" | "synonyms" | "expand" | "simplify" | "explain" | "improve" | "paraphrase_preserve" | "find_similes" | "decompose_claims" | "counterargument" | "check_logic" | "interactive_check";
+
+// Quick Check suggestion types
+interface QuickCheckSuggestion {
+  type: "word" | "sentence";
+  severity: "error" | "warning" | "improvement";
+  original: string;
+  replacement: string;
+  reason: string;
+  startIndex?: number;
+  endIndex?: number;
+}
+
+interface QuickCheckResponse {
+  isClean: boolean;
+  suggestions: QuickCheckSuggestion[];
+  summary: string;
+}
 
 interface GraphNode {
   id: string;
@@ -148,6 +165,20 @@ Context: ${context || "N/A"}${graphContext}
 
 Text to analyze: "${text}"`;
   },
+  interactive_check: (text) => {
+    return `Find writing issues. Return JSON array only.
+
+Format: [{"type":"word"|"sentence","severity":"error"|"warning"|"improvement","original":"exact text","replacement":"fix","reason":"5 words max"}]
+
+Rules:
+- type: "word" for words/phrases, "sentence" for full rewrites
+- severity: "error"=grammar, "warning"=clarity, "improvement"=style
+- original: copy EXACT text from input
+- 1-3 suggestions max, most important first
+- Return [] if clean
+
+Text: "${text}"`;
+  },
 };
 
 export async function POST(req: NextRequest) {
@@ -192,7 +223,6 @@ export async function POST(req: NextRequest) {
       // For Pro users, all non-chat actions are unlimited and use free models
     }
 
-    // Select model based on premium availability
     const modelMap = usePremiumModel ? PREMIUM_MODEL_MAP : FREE_MODEL_MAP;
     const selectedModel = modelMap[model] || modelMap.fast;
     const prompt = ACTION_PROMPTS[action](text, context, graphStructure);
@@ -225,8 +255,8 @@ Be precise and concise.`
           },
           { role: "user", content: prompt }
         ],
-        temperature: action === "synonyms" ? 0.7 : 0.3,
-        max_tokens: action === "expand" ? 800 : 500,
+        temperature: action === "synonyms" ? 0.7 : action === "interactive_check" ? 0.1 : 0.3,
+        max_tokens: action === "interactive_check" ? 400 : action === "expand" ? 800 : 500,
       }),
     });
 
@@ -248,6 +278,63 @@ Be precise and concise.`
       } else {
         const limit = userUsage.premium_prompts_limit || PREMIUM_PROMPTS_LIMIT;
         premiumPromptsRemaining = Math.max(0, limit - premiumPromptsUsed);
+      }
+    }
+
+    // Special handling for interactive_check - parse JSON and add indices
+    if (action === "interactive_check") {
+      try {
+        // Clean the result - remove markdown code blocks if present
+        let cleanedResult = result.trim();
+        if (cleanedResult.startsWith("```json")) {
+          cleanedResult = cleanedResult.slice(7);
+        } else if (cleanedResult.startsWith("```")) {
+          cleanedResult = cleanedResult.slice(3);
+        }
+        if (cleanedResult.endsWith("```")) {
+          cleanedResult = cleanedResult.slice(0, -3);
+        }
+        cleanedResult = cleanedResult.trim();
+
+        const suggestions: QuickCheckSuggestion[] = JSON.parse(cleanedResult);
+
+        // Add startIndex and endIndex for each suggestion
+        const processedSuggestions = suggestions.map(s => {
+          const startIndex = text.indexOf(s.original);
+          return {
+            ...s,
+            startIndex: startIndex >= 0 ? startIndex : undefined,
+            endIndex: startIndex >= 0 ? startIndex + s.original.length : undefined,
+          };
+        });
+
+        const quickCheckResponse: QuickCheckResponse = {
+          isClean: processedSuggestions.length === 0,
+          suggestions: processedSuggestions,
+          summary: processedSuggestions.length === 0
+            ? "Looking good! No issues found."
+            : `Found ${processedSuggestions.length} suggestion${processedSuggestions.length === 1 ? "" : "s"}`,
+        };
+
+        return NextResponse.json({
+          result: quickCheckResponse,
+          model: selectedModel.split("/")[1]?.split(":")[0] || model,
+          isPremium: usePremiumModel,
+          premiumPromptsRemaining
+        });
+      } catch (parseError) {
+        // If JSON parsing fails, return empty suggestions
+        console.error("Failed to parse interactive_check response:", parseError);
+        return NextResponse.json({
+          result: {
+            isClean: true,
+            suggestions: [],
+            summary: "Looking good! No issues found.",
+          } as QuickCheckResponse,
+          model: selectedModel.split("/")[1]?.split(":")[0] || model,
+          isPremium: usePremiumModel,
+          premiumPromptsRemaining
+        });
       }
     }
 

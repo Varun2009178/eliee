@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { ArrowLeft, Check, X, FileText, Sparkles, Zap, Brain } from "lucide-react";
+import { ArrowLeft, Check, X, FileText, Zap, Brain, Wand2, Eye } from "lucide-react";
 import { useSession } from "@/lib/auth-client";
 import posthog from "posthog-js";
 
@@ -74,15 +74,15 @@ export default function PricingPage() {
 
   const freeFeatures = [
     { text: "3 documents", icon: FileText, included: true },
-    { text: "Unlimited visualizations", icon: Sparkles, included: true },
+    { text: "Unlimited visualizations", icon: Eye, included: true },
     { text: "Basic AI (free models)", icon: Zap, included: true },
-    { text: "AI actions (verify, synonyms, etc.)", icon: Brain, included: true },
+    { text: "AI actions (verify, synonyms, etc.)", icon: Wand2, included: true },
     { text: "Export to PDF", icon: Check, included: true },
   ];
 
   const proFeatures = [
     { text: "Unlimited documents", icon: FileText, included: true, highlight: true },
-    { text: "Unlimited visualizations", icon: Sparkles, included: true },
+    { text: "Unlimited visualizations", icon: Eye, included: true },
     { text: "150 premium chat prompts/mo", icon: Zap, included: true, highlight: true },
     { text: "Claude & GPT-4 for chat", icon: Brain, included: true, highlight: true },
     { text: "Unlimited AI actions", icon: Check, included: true, description: "Verify, synonyms, expand, simplify - all free" },

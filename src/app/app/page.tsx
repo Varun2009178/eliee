@@ -3,6 +3,7 @@
 import React, { useMemo, useState, useCallback, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { MermaidDiagram } from "@/components/MermaidDiagram";
+import { QuickCheckPanel, QuickCheckSuggestion } from "@/components/QuickCheckPanel";
 import { cn } from "@/lib/utils";
 import { getUserUsage, updateUserUsage, DocumentType } from "@/lib/db";
 import { 
@@ -33,7 +34,6 @@ import {
   Send,
   ChevronDown,
   BookOpen,
-  Sparkles,
   Quote,
   Maximize2,
   Minimize2,
@@ -41,7 +41,8 @@ import {
   MoreVertical,
   LayoutPanelLeft,
   ListTree,
-  GitMerge
+  GitMerge,
+  CheckCheck
 } from "lucide-react";
 import { useSession, signOut } from "@/lib/auth-client";
 import { useRouter } from "next/navigation";
@@ -165,6 +166,7 @@ export default function AppPage() {
     explain: 0,
     improve: 0,
     chat: 0,
+    quick_check: 0,
   });
   const [isPro, setIsPro] = useState(false);
   const [premiumPromptsUsed, setPremiumPromptsUsed] = useState(0);
@@ -178,6 +180,33 @@ export default function AppPage() {
   const [focusWidth, setFocusWidth] = useState(380);
   const [isResizingFocus, setIsResizingFocus] = useState(false);
 
+  // Inline suggestions (Grammarly-style) - BETA
+  const [inlineSuggestion, setInlineSuggestion] = useState<{
+    show: boolean;
+    content: string;
+    type: string;
+    position: { top: number; left: number };
+    blockId: string;
+    isLoading: boolean;
+  }>({ show: false, content: "", type: "", position: { top: 0, left: 0 }, blockId: "", isLoading: false });
+  // Quick Check Panel state
+  const [showQuickCheckPanel, setShowQuickCheckPanel] = useState(false);
+  const [quickCheckLoading, setQuickCheckLoading] = useState(false);
+  const [quickCheckSuggestions, setQuickCheckSuggestions] = useState<QuickCheckSuggestion[]>([]);
+  const [quickCheckBlockId, setQuickCheckBlockId] = useState<string | null>(null);
+  const [hoveredSuggestion, setHoveredSuggestion] = useState<QuickCheckSuggestion | null>(null);
+  const [showQuickCheckBetaModal, setShowQuickCheckBetaModal] = useState(false);
+  // Cache for Quick Check - store last checked text and suggestions
+  const quickCheckCacheRef = useRef<{ text: string; suggestions: QuickCheckSuggestion[] } | null>(null);
+  
+  // Prevent layout shift by ensuring sidebar has initial width
+  const [sidebarMounted, setSidebarMounted] = useState(false);
+  
+  useEffect(() => {
+    // Set mounted after first render to prevent hydration mismatch
+    setSidebarMounted(true);
+  }, []);
+
   const FREE_LIMITS: Record<string, number> = {
     check_logic: 3,
     fact_check: 3,
@@ -189,7 +218,8 @@ export default function AppPage() {
     simplify: 1,
     explain: 1,
     improve: 1,
-    chat: Infinity,
+    chat: 10,
+    quick_check: 3,
   };
 
   // Load usage from Supabase (reload on session change and on mount)
@@ -915,51 +945,6 @@ export default function AppPage() {
 
   // --- Focus Mode Functions ---
 
-
-  // Keyboard shortcuts: Cmd/Ctrl + K to toggle Focus Mode, Cmd/Ctrl + Z for undo/redo
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // Cmd/Ctrl + K: Toggle Focus Mode
-      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
-        e.preventDefault();
-        if (!showVisualView) {
-          handleToggleFocusMode();
-        }
-        return;
-      }
-      
-      // Cmd/Ctrl + Z: Undo
-      if ((e.metaKey || e.ctrlKey) && e.key === "z" && !e.shiftKey) {
-        e.preventDefault();
-        if (history.length > 0 && historyIndex > 0) {
-          const newIndex = historyIndex - 1;
-          const historyState = history[newIndex];
-          if (historyState) {
-            setHistoryIndex(newIndex);
-            setBlocks(JSON.parse(JSON.stringify(historyState))); // Deep clone
-          }
-        }
-        return;
-      }
-      
-      // Cmd/Ctrl + Shift + Z: Redo
-      if ((e.metaKey || e.ctrlKey) && e.key === "z" && e.shiftKey) {
-        e.preventDefault();
-        if (history.length > 0 && historyIndex < history.length - 1) {
-          const newIndex = historyIndex + 1;
-          const historyState = history[newIndex];
-          if (historyState) {
-            setHistoryIndex(newIndex);
-            setBlocks(JSON.parse(JSON.stringify(historyState))); // Deep clone
-          }
-        }
-        return;
-      }
-    };
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [showVisualView, history, historyIndex]);
-
   // Selection tracking for Focus mode (for replace functionality)
   useEffect(() => {
     if (!showFocusMode) {
@@ -1053,6 +1038,10 @@ export default function AppPage() {
     if (showFocusMode) {
       setShowFocusMode(false);
     } else {
+      // Close Quick Check panel if open
+      if (showQuickCheckPanel) {
+        setShowQuickCheckPanel(false);
+      }
       // Check if first time
       const hasSeenFocusIntro = localStorage.getItem(`eliee_focus_intro_${session?.user?.id}`);
       if (!hasSeenFocusIntro && !dontShowFocusIntro) {
@@ -1100,6 +1089,272 @@ export default function AppPage() {
     // Actually perform the visualization
     await handleVisualize();
   };
+
+  // --- Quick Check Functions ---
+
+  // Toggle Quick Check panel and run check
+  const handleToggleQuickCheck = useCallback(async () => {
+    if (showQuickCheckPanel) {
+      setShowQuickCheckPanel(false);
+      return;
+    }
+
+    // Get all text content from blocks
+    const fullText = blocks.map(b => b.content).join("\n\n").trim();
+    if (!fullText || fullText.length < 20) {
+      setError("Add more text before running Quick Check");
+      setTimeout(() => setError(null), 3000);
+      return;
+    }
+
+    // Check if we have cached suggestions for this exact text
+    if (quickCheckCacheRef.current && quickCheckCacheRef.current.text === fullText) {
+      setShowQuickCheckPanel(true);
+      setQuickCheckSuggestions(quickCheckCacheRef.current.suggestions);
+      setQuickCheckBlockId(blocks[0]?.id || null);
+      return;
+    }
+
+    // Check free tier limit (unless Pro user)
+    if (!isPro) {
+      const used = focusUsage["quick_check"] || 0;
+      const limit = FREE_LIMITS["quick_check"] || 3;
+      if (used >= limit) {
+        setLimitReachedAction("quick_check");
+        setShowLimitReachedModal(true);
+        return;
+      }
+    }
+
+    // Close Focus Mode if open
+    if (showFocusMode) {
+      setShowFocusMode(false);
+    }
+
+    setShowQuickCheckPanel(true);
+    setQuickCheckLoading(true);
+    setQuickCheckSuggestions([]);
+    setQuickCheckBlockId(blocks[0]?.id || null);
+
+    // Track usage for non-pro users
+    if (!isPro) {
+      const newUsage = { ...focusUsage, quick_check: (focusUsage["quick_check"] || 0) + 1 };
+      setFocusUsage(newUsage);
+      if (session?.user?.id) {
+        try {
+          await updateUserUsage(session.user.id, newUsage);
+        } catch (error) {
+          console.error("Failed to save usage:", error);
+        }
+      }
+    }
+
+    // Track in PostHog
+    posthog.capture("quick_check_used", {
+      text_length: fullText.length,
+      is_pro: isPro,
+    });
+
+    try {
+      const response = await fetch("/api/assist", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "interactive_check",
+          text: fullText,
+          userId: session?.user?.id,
+        }),
+      });
+
+      const data = await response.json();
+      if (data.error) {
+        throw new Error(data.error);
+      }
+
+      const result = data.result;
+      const suggestions = result.suggestions || [];
+      
+      // Cache the results
+      quickCheckCacheRef.current = {
+        text: fullText,
+        suggestions: suggestions,
+      };
+      
+      setQuickCheckSuggestions(suggestions);
+    } catch (error: any) {
+      console.error("Quick Check error:", error);
+      setError("Failed to analyze text");
+      setTimeout(() => setError(null), 3000);
+    } finally {
+      setQuickCheckLoading(false);
+    }
+  }, [showQuickCheckPanel, blocks, showFocusMode, session, isPro, focusUsage, FREE_LIMITS]);
+
+  // Apply a single suggestion
+  const applyQuickCheckSuggestion = useCallback((suggestion: QuickCheckSuggestion) => {
+    // Find the block that contains this suggestion
+    const fullText = blocks.map(b => b.content).join("\n\n");
+    
+    // Use startIndex if available, otherwise fall back to indexOf
+    let suggestionIndex = suggestion.startIndex !== undefined 
+      ? suggestion.startIndex 
+      : fullText.indexOf(suggestion.original);
+
+    if (suggestionIndex === -1) {
+      // Original text not found, remove suggestion from list
+      setQuickCheckSuggestions(prev => prev.filter(s => s !== suggestion));
+      return;
+    }
+
+    // Verify the text at this position matches
+    const textAtPosition = suggestion.endIndex !== undefined
+      ? fullText.slice(suggestionIndex, suggestion.endIndex)
+      : fullText.slice(suggestionIndex, suggestionIndex + suggestion.original.length);
+    
+    if (textAtPosition !== suggestion.original) {
+      // Text has changed, try to find it
+      suggestionIndex = fullText.indexOf(suggestion.original);
+      if (suggestionIndex === -1) {
+        setQuickCheckSuggestions(prev => prev.filter(s => s !== suggestion));
+        return;
+      }
+    }
+
+    // Find which block contains this text and update it
+    let currentIndex = 0;
+    for (const block of blocks) {
+      const blockEnd = currentIndex + block.content.length;
+      const relativeStart = suggestionIndex - currentIndex;
+
+      if (relativeStart >= 0 && relativeStart < block.content.length) {
+        // This block contains the suggestion
+        const newContent = block.content.slice(0, relativeStart) +
+          suggestion.replacement +
+          block.content.slice(relativeStart + suggestion.original.length);
+
+        setBlocks(prev => prev.map(b =>
+          b.id === block.id ? { ...b, content: newContent } : b
+        ));
+        break;
+      }
+      currentIndex = blockEnd + 2; // +2 for "\n\n" separator
+    }
+
+    // Clear cache since text has changed
+    quickCheckCacheRef.current = null;
+    
+    // Remove applied suggestion from list
+    setQuickCheckSuggestions(prev => prev.filter(s => s !== suggestion));
+  }, [blocks]);
+
+  // Dismiss a suggestion (remove from list without applying)
+  const dismissQuickCheckSuggestion = useCallback((suggestion: QuickCheckSuggestion) => {
+    setQuickCheckSuggestions(prev => prev.filter(s => s !== suggestion));
+  }, []);
+
+  // Apply all suggestions (sorted by position descending to avoid index shift)
+  const applyAllQuickCheckSuggestions = useCallback(() => {
+    // Get current full text
+    let fullText = blocks.map(b => b.content).join("\n\n");
+    
+    // Filter suggestions that have valid indices and sort by startIndex descending
+    // This ensures we apply from end to start to avoid index shifting issues
+    const sortedSuggestions = [...quickCheckSuggestions]
+      .filter(s => s.startIndex !== undefined && s.endIndex !== undefined)
+      .sort((a, b) => (b.startIndex || 0) - (a.startIndex || 0));
+
+    // Apply each suggestion using the stored indices
+    for (const suggestion of sortedSuggestions) {
+      const startIndex = suggestion.startIndex!;
+      const endIndex = suggestion.endIndex!;
+      
+      // Verify the original text still matches at this position
+      const textAtPosition = fullText.slice(startIndex, endIndex);
+      if (textAtPosition === suggestion.original) {
+        // Apply the replacement
+        fullText = fullText.slice(0, startIndex) + suggestion.replacement + fullText.slice(endIndex);
+      } else {
+        // Text has changed, try to find it using indexOf as fallback
+        const fallbackIndex = fullText.indexOf(suggestion.original, startIndex - 50); // Search near original position
+        if (fallbackIndex !== -1) {
+          fullText = fullText.slice(0, fallbackIndex) + suggestion.replacement + fullText.slice(fallbackIndex + suggestion.original.length);
+        }
+      }
+    }
+
+    // Split back into blocks
+    if (blocks.length === 1) {
+      setBlocks([{ ...blocks[0], content: fullText }]);
+    } else {
+      // For multiple blocks, split by double newlines
+      const parts = fullText.split("\n\n");
+      const newBlocks = blocks.map((block, i) => ({
+        ...block,
+        content: parts[i] || ""
+      }));
+      setBlocks(newBlocks);
+    }
+
+    // Clear cache since text has changed
+    quickCheckCacheRef.current = null;
+    setQuickCheckSuggestions([]);
+  }, [quickCheckSuggestions, blocks]);
+
+  // Keyboard shortcuts: Cmd/Ctrl + K to toggle Focus Mode, Cmd/Ctrl + Shift + C for Quick Check, Cmd/Ctrl + Z for undo/redo
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Cmd/Ctrl + K: Toggle Focus Mode (works for AI Native documents)
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        e.preventDefault();
+        if (!showVisualView) {
+          // Only allow Focus Mode for AI Native documents
+          if (documentType === "ai_native") {
+            handleToggleFocusMode();
+          }
+        }
+        return;
+      }
+
+      // Cmd/Ctrl + Shift + C: Toggle Quick Check
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === "c") {
+        e.preventDefault();
+        if (!showVisualView && documentType === "ai_native") {
+          handleToggleQuickCheck();
+        }
+        return;
+      }
+
+      // Cmd/Ctrl + Z: Undo
+      if ((e.metaKey || e.ctrlKey) && e.key === "z" && !e.shiftKey) {
+        e.preventDefault();
+        if (history.length > 0 && historyIndex > 0) {
+          const newIndex = historyIndex - 1;
+          const historyState = history[newIndex];
+          if (historyState) {
+            setHistoryIndex(newIndex);
+            setBlocks(JSON.parse(JSON.stringify(historyState))); // Deep clone
+          }
+        }
+        return;
+      }
+
+      // Cmd/Ctrl + Shift + Z: Redo
+      if ((e.metaKey || e.ctrlKey) && e.key === "z" && e.shiftKey) {
+        e.preventDefault();
+        if (history.length > 0 && historyIndex < history.length - 1) {
+          const newIndex = historyIndex + 1;
+          const historyState = history[newIndex];
+          if (historyState) {
+            setHistoryIndex(newIndex);
+            setBlocks(JSON.parse(JSON.stringify(historyState))); // Deep clone
+          }
+        }
+        return;
+      }
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [showVisualView, history, historyIndex, documentType, handleToggleQuickCheck]);
 
   // Check if action is allowed (free tier limits) - memoized for performance
   const isActionAllowed = useCallback((action: string): boolean => {
@@ -1257,6 +1512,104 @@ export default function AppPage() {
     setFocusInput("");
   }, [focusInput, handleFocusAction]);
 
+  // Handle inline suggestion (Grammarly-style) - shows result right where you're writing
+  const handleInlineSuggestion = useCallback(async (action: string, text: string, blockId: string, element: HTMLElement) => {
+    if (!text?.trim()) return;
+
+    // Check free tier limit
+    if (!isActionAllowed(action)) {
+      setLimitReachedAction(action);
+      setShowLimitReachedModal(true);
+      return;
+    }
+
+    // Get position for the popover
+    const rect = element.getBoundingClientRect();
+    const scrollContainer = scrollContainerRef.current;
+    const scrollTop = scrollContainer?.scrollTop || 0;
+
+    // Position below the element
+    setInlineSuggestion({
+      show: true,
+      content: "",
+      type: action,
+      position: {
+        top: rect.bottom + scrollTop - (scrollContainer?.getBoundingClientRect().top || 0) + 8,
+        left: Math.max(16, rect.left - (scrollContainer?.getBoundingClientRect().left || 0))
+      },
+      blockId,
+      isLoading: true
+    });
+
+    // Track usage
+    posthog.capture("inline_suggestion_used", {
+      action_type: action,
+      text_length: text.length,
+      is_pro: isPro,
+    });
+
+    // Update usage for non-pro users
+    if (!isPro) {
+      const newUsage = { ...focusUsage, [action]: (focusUsage[action] || 0) + 1 };
+      setFocusUsage(newUsage);
+      if (session?.user?.id) {
+        try {
+          await updateUserUsage(session.user.id, newUsage);
+        } catch (error) {
+          console.error("Failed to save usage:", error);
+        }
+      }
+    }
+
+    try {
+      const context = blocks.map(b => b.content).join("\n\n").substring(0, 4000);
+      const graphStructure = aiResult?.nodes ? {
+        nodes: aiResult.nodes,
+        edges: aiResult.connections || []
+      } : undefined;
+
+      const res = await fetch("/api/assist", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action,
+          text,
+          context,
+          graphStructure,
+          model: focusModel,
+          userId: session?.user?.id
+        }),
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+
+      // Update premium prompt tracking
+      if (isPro && data.premiumPromptsRemaining !== undefined) {
+        setPremiumPromptsUsed(premiumPromptsLimit - data.premiumPromptsRemaining);
+      }
+
+      // Format result
+      let formattedResult = data.result || "";
+      formattedResult = formattedResult
+        .replace(/\*\*(.*?)\*\*/g, '$1')
+        .replace(/\*(.*?)\*/g, '$1')
+        .replace(/^#{1,6}\s+/gm, '')
+        .trim();
+
+      setInlineSuggestion(prev => ({
+        ...prev,
+        content: formattedResult,
+        isLoading: false
+      }));
+    } catch (err: any) {
+      setInlineSuggestion(prev => ({
+        ...prev,
+        content: `Error: ${err.message}`,
+        isLoading: false
+      }));
+    }
+  }, [isActionAllowed, isPro, focusUsage, session, blocks, focusModel, aiResult, premiumPromptsLimit]);
+
   // Memoize focus action buttons to prevent re-renders
   const focusActionButtons = useMemo(() => [
     { action: "check_logic", label: "Check Logic" },
@@ -1279,7 +1632,7 @@ export default function AppPage() {
     counterargument: Lightbulb,
     expand: Target,
     simplify: LayoutPanelLeft,
-    improve: Sparkles,
+    improve: Wand2,
   };
 
   const mermaidChart = useMemo(() => {
@@ -1398,8 +1751,16 @@ export default function AppPage() {
       <motion.aside
         initial={false}
         animate={{ width: isSidebarOpen ? 320 : 0 }}
-        transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+        transition={{ 
+          duration: sidebarMounted ? 0.3 : 0, // No animation on first render
+          ease: [0.16, 1, 0.3, 1] 
+        }}
         className="relative border-r border-black/[0.06] bg-[#fcfcfc] flex flex-col overflow-hidden flex-shrink-0"
+        style={{ 
+          width: sidebarMounted ? undefined : (isSidebarOpen ? 320 : 0), // Fixed width on first render
+          minWidth: isSidebarOpen ? 320 : 0, 
+          maxWidth: isSidebarOpen ? 320 : 0 
+        }}
       >
         <div className="p-6 flex items-center justify-between border-b border-black/[0.04]">
           <div className="flex items-center gap-3">
@@ -1422,11 +1783,11 @@ export default function AppPage() {
         
         <div className="flex-1 overflow-y-auto">
           {/* Documents List - INCREASED sizes */}
-          <div className="p-4 space-y-1.5">
-            <div className="flex items-center justify-between px-3 mb-3">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-black/30">Documents</p>
+          <div className="p-5 space-y-2.5">
+            <div className="flex items-center justify-between px-3 mb-4">
+              <p className="text-[12px] font-semibold uppercase tracking-wider text-black/30">Documents</p>
               {!isPro && (
-                <span className="text-[11px] text-black/35">{documents.length}/{FREE_DOCUMENT_LIMIT}</span>
+                <span className="text-[12px] text-black/35">{documents.length}/{FREE_DOCUMENT_LIMIT}</span>
               )}
             </div>
             {documents.map((doc) => (
@@ -1434,14 +1795,14 @@ export default function AppPage() {
                 key={doc.id}
                 onClick={() => handleSelectDocument(doc)}
                 className={cn(
-                  "group flex items-center gap-3 px-4 py-3 rounded-xl cursor-pointer transition-all",
+                  "group flex items-center gap-3 px-4 py-3.5 rounded-xl cursor-pointer transition-all",
                   currentDocId === doc.id
                     ? "bg-white border border-black/[0.08] shadow-sm"
                     : "hover:bg-white/60"
                 )}
               >
                 <FileText size={18} className={cn("flex-shrink-0", currentDocId === doc.id ? "text-black/60" : "text-black/35")} />
-                <span className={cn("text-sm font-medium truncate flex-1", currentDocId === doc.id ? "text-black/80" : "text-black/55")}>
+                <span className={cn("text-[14px] font-medium truncate flex-1", currentDocId === doc.id ? "text-black/80" : "text-black/55")}>
                   {doc.title || "Untitled"}
                 </span>
                 <button
@@ -1453,17 +1814,17 @@ export default function AppPage() {
               </div>
             ))}
             {documents.length === 0 && (
-              <p className="text-sm text-black/35 text-center py-6">No documents yet</p>
+              <p className="text-sm text-black/35 text-center py-8">No documents yet</p>
             )}
           </div>
 
           {/* Current Document Stats - INCREASED sizes */}
-          <div className="p-5 space-y-5 border-t border-black/[0.04]">
-            <div className="p-5 rounded-xl bg-white border border-black/[0.04] space-y-4">
+          <div className="p-5 space-y-6 border-t border-black/[0.04]">
+            <div className="p-5 rounded-xl bg-white border border-black/[0.04] space-y-5">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3 text-black/50">
                   <FileText size={18} />
-                  <span className="text-sm font-medium truncate">{docTitle}</span>
+                  <span className="text-[14px] font-medium truncate">{docTitle}</span>
                 </div>
                 {isSaving ? (
                   <div className="w-4 h-4 border-2 border-black/20 border-t-black/50 rounded-full animate-spin" />
@@ -1471,11 +1832,11 @@ export default function AppPage() {
                   <Check size={16} className="text-emerald-500" />
                 ) : null}
               </div>
-              <div className="flex items-center justify-between text-sm text-black/40">
+              <div className="flex items-center justify-between text-[13px] text-black/40">
                 <span>{wordCount} words</span>
                 {lastSaved && <span>Saved</span>}
               </div>
-              <div className="h-1.5 bg-black/[0.04] rounded-full overflow-hidden">
+              <div className="h-2 bg-black/[0.04] rounded-full overflow-hidden">
                 <div className="h-full bg-black/25 transition-all duration-300" style={{ width: `${Math.min(100, (wordCount / 300) * 100)}%` }} />
               </div>
             </div>
@@ -1545,7 +1906,7 @@ export default function AppPage() {
       </motion.aside>
 
       {/* Main */}
-      <main className="flex-1 relative bg-white overflow-hidden flex flex-col">
+      <main className="flex-1 relative bg-white overflow-hidden flex flex-col" style={{ minWidth: 0 }}>
         {/* Mobile Desktop Hint */}
         <AnimatePresence>
           {isMobileDevice && showMobileWarning && (
@@ -1574,25 +1935,41 @@ export default function AppPage() {
           )}
         </AnimatePresence>
 
-        <header className="h-14 flex items-center justify-between px-6 border-b border-black/[0.06] bg-white z-30 flex-shrink-0">
-          <div className="flex items-center gap-4">
-            <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-2 hover:bg-black/[0.04] rounded-lg transition-colors">
-              <Menu size={20} className="text-black/40" />
+        <header className="h-16 flex items-center justify-between px-4 md:px-8 lg:px-12 border-b border-black/[0.06] bg-white/80 backdrop-blur-md sticky top-0 z-50 flex-shrink-0 min-w-0">
+          <div className="flex items-center gap-3 md:gap-5 lg:gap-8 min-w-0 flex-1">
+            <button 
+              onClick={() => setIsSidebarOpen(!isSidebarOpen)} 
+              className="p-2.5 hover:bg-black/[0.04] rounded-xl transition-all flex-shrink-0 active:scale-90"
+              title={isSidebarOpen ? "Close sidebar" : "Open sidebar"}
+            >
+              <Menu size={20} className="text-black/60" />
             </button>
-            <input type="text" value={docTitle} onChange={(e) => setDocTitle(e.target.value)} className="text-base font-medium bg-transparent border-none focus:outline-none text-black/80 placeholder:text-black/30" placeholder="Untitled" />
+
+            <div className="flex items-center min-w-0 flex-1 max-w-[180px] md:max-w-sm lg:max-w-md xl:max-w-lg">
+              <input 
+                type="text" 
+                value={docTitle} 
+                onChange={(e) => setDocTitle(e.target.value)} 
+                className="text-sm md:text-base font-bold bg-transparent border-none focus:outline-none text-black/80 placeholder:text-black/20 min-w-0 w-full truncate hover:bg-black/[0.02] px-2 py-1 rounded-lg transition-all" 
+                placeholder="Untitled Document" 
+              />
+            </div>
           </div>
-          <div className="flex items-center gap-5">
+          <div className="flex items-center gap-3 md:gap-5 lg:gap-8 flex-shrink-0 pl-4 md:pl-0">
             {/* Autosave indicator */}
-            <div className="flex items-center gap-2 text-sm text-black/35">
+            <div className="hidden sm:flex items-center gap-2 text-xs md:text-sm text-black/35 font-medium">
               {isSaving ? (
                 <>
-                  <div className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
-                  <span>Saving...</span>
+                  <div className="relative">
+                    <div className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-ping absolute inset-0 opacity-40" />
+                    <div className="w-2.5 h-2.5 rounded-full bg-amber-400 relative" />
+                  </div>
+                  <span className="whitespace-nowrap hidden md:inline">Syncing...</span>
                 </>
               ) : lastSaved ? (
                 <>
-                  <div className="w-2 h-2 rounded-full bg-emerald-400" />
-                  <span>Saved</span>
+                  <div className="w-2.5 h-2.5 rounded-full bg-emerald-500/80" />
+                  <span className="whitespace-nowrap hidden md:inline">Saved</span>
                 </>
               ) : null}
             </div>
@@ -1603,54 +1980,54 @@ export default function AppPage() {
             }) && (
               <button
                 onClick={() => setShowProModal(true)}
-                className="hidden sm:flex items-center px-2.5 py-1 rounded-md bg-black text-[11px] font-medium text-white hover:bg-black/90 transition-colors"
+                className="hidden md:flex items-center px-4 py-2 rounded-lg bg-black text-xs font-bold text-white hover:bg-black/90 transition-all shadow-lg shadow-black/10 active:scale-95"
               >
                 Upgrade
               </button>
             )}
             {showVisualView && (
-              <button onClick={() => setShowVisualView(false)} className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium text-black/50 hover:text-black hover:bg-black/[0.03] transition-all">
-                <ArrowLeft size={14} /> Back to Doc
+              <button onClick={() => setShowVisualView(false)} className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold text-black/50 hover:text-black hover:bg-black/[0.03] transition-all active:scale-95 border border-transparent hover:border-black/[0.05]">
+                <ArrowLeft size={16} strokeWidth={2.5} /> <span className="hidden md:inline">Back to Doc</span>
               </button>
             )}
             {!showVisualView && documentType === "visualization" && (
-              <>
+              <div className="flex items-center gap-2 md:gap-4">
                 <button
                   onClick={() => setCanvasMode(!canvasMode)}
                   className={cn(
-                    "flex items-center gap-1.5 px-2.5 py-1 rounded text-[10px] font-medium transition-colors",
+                    "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all border shadow-sm active:scale-95",
                     canvasMode
-                      ? "bg-emerald-100 text-emerald-700 border border-emerald-200"
-                      : "text-black/40 hover:text-black/60 hover:bg-black/[0.02] border border-transparent"
+                      ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                      : "bg-white text-black/40 hover:text-black/60 border-black/[0.04]"
                   )}
                   title={canvasMode ? "Switch to structured mode" : "Switch to canvas mode"}
                 >
-                  <Maximize2 size={12} />
-                  {canvasMode ? "Canvas" : "Structured"}
+                  <Maximize2 size={12} strokeWidth={2.5} />
+                  <span className="hidden sm:inline">{canvasMode ? "Canvas" : "Structured"}</span>
                 </button>
                 <button 
                   onClick={handleToggleVisualize}
                   disabled={isAnalyzing}
                   className={cn(
-                    "flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all",
+                    "flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-sm active:scale-95",
                     isAnalyzing
-                      ? "text-black/30 cursor-not-allowed"
-                      : "text-black/50 hover:text-black hover:bg-black/[0.03]"
+                      ? "bg-black/[0.02] text-black/30 cursor-not-allowed border border-black/[0.04]"
+                      : "bg-black text-white hover:bg-black/90 shadow-black/10"
                   )}
                 >
                   {isAnalyzing ? (
                     <>
-                      <div className="w-3 h-3 border-2 border-black/20 border-t-black/50 rounded-full animate-spin" />
-                      Analyzing...
+                      <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      <span className="hidden sm:inline">Analysing...</span>
                     </>
                   ) : (
                     <>
-                      <Eye size={14} />
-                      Visualize
+                      <Eye size={16} strokeWidth={2.5} />
+                      <span>Visualize</span>
                     </>
                   )}
                 </button>
-              </>
+              </div>
             )}
             {/* Document type switcher */}
             {!showVisualView && documentType && (
@@ -1801,70 +2178,141 @@ export default function AppPage() {
                                 </div>
                               )}
                             </div>
-                            {/* Action buttons for AI Native documents - BIGGER */}
-                            {documentType === "ai_native" && showFocusMode && block.content.trim() && (
-                              <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 flex-wrap">
-                                {focusActionButtons.map((item) => {
-                                  const remaining = getRemainingUses(item.action);
-                                  const allowed = remaining > 0 || remaining === Infinity;
+                          </div>
+                          <div className="relative">
+                            {/* Highlight overlay for Quick Check suggestions */}
+                            {hoveredSuggestion && block.content && block.content.includes(hoveredSuggestion.original) && (
+                              <div
+                                className={cn(
+                                  "absolute inset-0 whitespace-pre-wrap break-words pointer-events-none leading-relaxed",
+                                  block.type === "text" ? "text-lg" : "text-base font-medium"
+                                )}
+                                style={{ color: "transparent" }}
+                              >
+                                {(() => {
+                                  const content = block.content || "";
+                                  const original = hoveredSuggestion.original;
+                                  const index = content.indexOf(original);
+                                  if (index === -1) return content;
+
+                                  const before = content.slice(0, index);
+                                  const match = content.slice(index, index + original.length);
+                                  const after = content.slice(index + original.length);
+
+                                  const highlightColor = hoveredSuggestion.severity === "error"
+                                    ? "bg-rose-200/80"
+                                    : hoveredSuggestion.severity === "warning"
+                                    ? "bg-amber-200/80"
+                                    : "bg-blue-200/80";
+
                                   return (
-                                    <button
-                                      key={item.action}
-                                      onMouseDown={(e) => e.preventDefault()}
-                                      onClick={(e) => {
-                                        e.preventDefault();
-                                        e.stopPropagation();
-                                        // Select the block's text and trigger action
-                                        const textarea = e.currentTarget.closest('.group')?.querySelector('textarea') as HTMLTextAreaElement;
-                                        if (textarea && textarea.value.trim()) {
-                                          textarea.focus();
-                                          textarea.setSelectionRange(0, textarea.value.length);
-                                          setSelectedText(textarea.value);
-                                          setSelectedRange({ start: 0, end: textarea.value.length, textarea });
-                                          handleFocusAction(item.action, textarea.value);
-                                        }
-                                      }}
-                                      disabled={!allowed || isFocusLoading || !block.content.trim()}
-                                      className={cn(
-                                        "px-2.5 py-1 text-xs rounded-lg transition-all",
-                                        !allowed || !block.content.trim()
-                                          ? "text-black/20 cursor-not-allowed"
-                                          : "text-black/50 hover:text-black/80 hover:bg-black/[0.06]"
-                                      )}
-                                      title={item.label}
-                                    >
-                                      {item.label}
-                                    </button>
+                                    <>
+                                      <span>{before}</span>
+                                      <span className={cn(highlightColor, "rounded px-0.5")}>{match}</span>
+                                      <span>{after}</span>
+                                    </>
                                   );
-                                })}
+                                })()}
                               </div>
                             )}
+                            <textarea
+                              value={block.content || ""}
+                              onChange={(e) => {
+                                updateBlock(block.id, e.target.value);
+                              }}
+                              onInput={(e) => autoResize(e.currentTarget)}
+                              onFocus={(e) => autoResize(e.currentTarget)}
+                              onBlur={(e) => {
+                                // Ensure content is preserved on blur - sync state with DOM
+                                const currentValue = e.target.value;
+                                if (currentValue !== (block.content || "")) {
+                                  updateBlock(block.id, currentValue);
+                                }
+                              }}
+                              placeholder={block.type === "text" ? "Start writing..." : `Enter ${block.type}...`}
+                              className={cn(
+                                "w-full bg-transparent border-none focus:ring-0 p-0 resize-none leading-relaxed placeholder:text-black/20 focus:outline-none relative z-10",
+                                block.type === "text" ? "text-lg text-black/80" : "text-base font-medium text-black/75"
+                              )}
+                              style={{ overflow: "hidden" }}
+                              rows={1}
+                            />
                           </div>
-                          <textarea
-                            value={block.content || ""}
-                            onChange={(e) => updateBlock(block.id, e.target.value)}
-                            onInput={(e) => autoResize(e.currentTarget)}
-                            onFocus={(e) => autoResize(e.currentTarget)}
-                            onBlur={(e) => {
-                              // Ensure content is preserved on blur - sync state with DOM
-                              const currentValue = e.target.value;
-                              if (currentValue !== (block.content || "")) {
-                                updateBlock(block.id, currentValue);
-                              }
-                            }}
-                            placeholder={block.type === "text" ? "Start writing..." : `Enter ${block.type}...`}
-                            className={cn(
-                              "w-full bg-transparent border-none focus:ring-0 p-0 resize-none leading-relaxed placeholder:text-black/20 focus:outline-none",
-                              block.type === "text" ? "text-lg text-black/80" : "text-base font-medium text-black/75"
-                            )}
-                            style={{ overflow: "hidden" }}
-                            rows={1}
-                          />
                         </div>
                       </div>
                     </div>
                   ))}
                 </div>
+
+                {/* Inline Suggestion Popover (Grammarly-style) - BETA */}
+                <AnimatePresence>
+                  {inlineSuggestion.show && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -8 }}
+                      style={{
+                        position: "absolute",
+                        top: inlineSuggestion.position.top,
+                        left: inlineSuggestion.position.left,
+                        maxWidth: "min(500px, calc(100% - 32px))",
+                        zIndex: 50
+                      }}
+                      className="bg-white rounded-xl shadow-xl border border-black/[0.08] overflow-hidden"
+                    >
+                      {/* Header */}
+                      <div className="flex items-center justify-between px-4 py-2.5 border-b border-black/[0.04] bg-black/[0.01]">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[11px] font-medium text-black/50 uppercase tracking-wider">
+                            {inlineSuggestion.type.replace(/_/g, " ")}
+                          </span>
+                        </div>
+                        <button
+                          onClick={() => setInlineSuggestion(prev => ({ ...prev, show: false }))}
+                          className="p-1 text-black/30 hover:text-black/60 hover:bg-black/[0.04] rounded transition-colors"
+                        >
+                          <X size={14} />
+                        </button>
+                      </div>
+
+                      {/* Content */}
+                      <div className="p-4 max-h-[300px] overflow-y-auto">
+                        {inlineSuggestion.isLoading ? (
+                          <div className="flex items-center gap-3 text-black/40">
+                            <div className="w-4 h-4 border-2 border-black/10 border-t-black/40 rounded-full animate-spin" />
+                            <span className="text-sm">Analyzing...</span>
+                          </div>
+                        ) : (
+                          <div className="text-[13px] text-black/70 leading-relaxed whitespace-pre-wrap">
+                            {inlineSuggestion.content}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Actions */}
+                      {!inlineSuggestion.isLoading && inlineSuggestion.content && (
+                        <div className="flex items-center justify-between px-4 py-2.5 border-t border-black/[0.04] bg-black/[0.01]">
+                          <button
+                            onClick={() => {
+                              // Copy to clipboard
+                              navigator.clipboard.writeText(inlineSuggestion.content);
+                            }}
+                            className="text-[11px] text-black/40 hover:text-black/60 transition-colors"
+                          >
+                            Copy
+                          </button>
+                          <button
+                            onClick={() => setInlineSuggestion(prev => ({ ...prev, show: false }))}
+                            className="text-[11px] font-medium text-black/50 hover:text-black/70 px-2 py-1 rounded hover:bg-black/[0.04] transition-colors"
+                          >
+                            Dismiss
+                          </button>
+                        </div>
+                      )}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
                 <div className="h-80" />
               </div>
             </motion.div>
@@ -1877,38 +2325,40 @@ export default function AppPage() {
               className="flex-1 flex flex-col bg-[#f5f3ef] overflow-y-auto"
             >
               {/* Sticky header bar */}
-              <div className="sticky top-0 z-20 h-16 border-b border-black/[0.06] bg-[#f5f3ef]/90 backdrop-blur-md flex items-center justify-between px-6 md:px-10 flex-shrink-0">
-                <div className="flex items-center gap-4">
-                  <div className="flex items-center gap-3">
+              <div className="sticky top-0 z-30 h-16 border-b border-black/[0.06] bg-[#f5f3ef]/90 backdrop-blur-md flex items-center justify-between px-6 md:px-12 flex-shrink-0">
+                <div className="flex items-center gap-4 md:gap-8 min-w-0">
+                  <div className="flex items-center gap-3 md:gap-4 shrink-0">
                     <div className="w-2.5 h-2.5 rounded-full bg-black/30" />
-                    <h2 className="text-base font-semibold text-black/80">{docTitle}</h2>
+                    <h2 className="text-sm md:text-base font-bold text-black/80 truncate max-w-[120px] md:max-w-xs">{docTitle}</h2>
                   </div>
-                  <div className="hidden sm:flex items-center gap-3">
-                    <div className="h-5 w-[1px] bg-black/[0.08]" />
-                    <span className="text-xs font-medium text-black/40 uppercase tracking-wider">
+                  <div className="hidden md:flex items-center gap-4">
+                    <div className="h-6 w-[1px] bg-black/[0.08]" />
+                    <span className="text-[10px] font-bold text-black/40 uppercase tracking-[0.1em]">
                       Logic Architecture
                     </span>
                   </div>
                 </div>
-                <div className="flex items-center gap-4">
-                  <span className="hidden sm:block text-xs text-black/30 font-medium">
-                    {aiResult?.nodes?.length || 0} nodes mapped
+                <div className="flex items-center gap-3 md:gap-6 flex-shrink-0">
+                  <span className="hidden lg:block text-[11px] text-black/35 font-bold uppercase tracking-wider">
+                    {aiResult?.nodes?.length || 0} nodes
                   </span>
                   {!isPro && (
                     <button
                       onClick={() => setShowProModal(true)}
-                      className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-gradient-to-r from-amber-500/10 to-orange-500/10 border border-amber-500/20 text-[11px] font-medium text-amber-700 hover:from-amber-500/15 hover:to-orange-500/15 transition-all"
+                      className="hidden sm:flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500/10 to-orange-500/10 border border-amber-500/20 text-[11px] font-bold text-amber-700 hover:from-amber-500/20 hover:to-orange-500/20 transition-all active:scale-95 shadow-sm"
                     >
-                      <Crown size={12} />
-                      <span>Upgrade to Pro</span>
+                      <Crown size={14} />
+                      <span className="hidden md:inline">Upgrade to Pro</span>
+                      <span className="md:hidden">Upgrade</span>
                     </button>
                   )}
                   <button
                     onClick={handleConvertToDoc}
-                    className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-black text-white text-xs font-semibold hover:bg-black/80 transition-all shadow-sm"
+                    className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-black text-white text-xs font-bold hover:bg-black/85 transition-all shadow-lg shadow-black/10 active:scale-95 flex-shrink-0"
                   >
-                    <RefreshCw size={14} strokeWidth={2.5} />
-                    Sync to Editor
+                    <RefreshCw size={14} strokeWidth={3} className="group-hover:rotate-180 transition-transform duration-500" />
+                    <span className="hidden sm:inline">Sync to Editor</span>
+                    <span className="sm:hidden">Sync</span>
                   </button>
                 </div>
               </div>
@@ -2097,13 +2547,53 @@ export default function AppPage() {
               className="h-full border-l border-black/[0.08] bg-white flex flex-col z-50 flex-shrink-0"
               data-focus-sidebar="true"
             >
-            {/* Header - BIGGER */}
-            <div className="h-14 border-b border-black/[0.06] flex items-center justify-between px-5">
+            {/* Header - Compact */}
+            <div className="h-12 border-b border-black/[0.06] flex items-center justify-between px-5 flex-shrink-0">
               <div className="flex items-center gap-3">
                 <span className="text-base font-semibold text-black/70">Assistant</span>
                 <span className="text-xs text-black/30 font-mono bg-black/[0.03] px-2 py-0.5 rounded">⌘K</span>
               </div>
               <div className="flex items-center gap-2">
+                {/* Usage Limits - Moved to header */}
+                {!isPro ? (
+                  <div className="flex items-center gap-2 text-[10px] text-black/40 px-2 py-1 rounded-md bg-black/[0.02]">
+                    <span>Chat: {focusUsage.chat || 0}/{FREE_LIMITS.chat}</span>
+                    {Object.entries(FREE_LIMITS).some(([action]) => {
+                      const remaining = getRemainingUses(action);
+                      return remaining !== Infinity && remaining <= 1 && (focusUsage[action] || 0) > 0;
+                    }) && (
+                      <button
+                        onClick={() => setShowProModal(true)}
+                        className="text-[10px] font-medium text-black/50 hover:text-black/70 transition-colors underline"
+                      >
+                        Upgrade
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2 text-[10px] px-2 py-1 rounded-md bg-emerald-50/50">
+                    <span className="font-medium text-emerald-700">Pro</span>
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                    <span className="text-black/50">
+                      {premiumPromptsUsed >= premiumPromptsLimit
+                        ? "Free models"
+                        : `${premiumPromptsLimit - premiumPromptsUsed} prompts`}
+                    </span>
+                  </div>
+                )}
+                {/* Quick Check button in Focus Mode */}
+                <button
+                  onClick={() => {
+                    setShowFocusMode(false);
+                    setTimeout(() => handleToggleQuickCheck(), 100);
+                  }}
+                  disabled={quickCheckLoading}
+                  className="group flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium bg-gradient-to-r from-violet-50 to-purple-50 text-violet-600 hover:from-violet-500 hover:to-purple-600 hover:text-white border border-violet-200/50 hover:border-transparent transition-all"
+                  title="Quick Check (⌘⇧C)"
+                >
+                  <CheckCheck size={12} className="text-violet-500 group-hover:text-white transition-colors" />
+                  <span>Check</span>
+                </button>
                 <select
                   value={focusModel}
                   onMouseDown={(e) => e.stopPropagation()} // Prevent selection clearing
@@ -2126,100 +2616,21 @@ export default function AppPage() {
               </div>
             </div>
 
-            {/* Usage Limits */}
-            {!isPro ? (
-              <div className="px-5 py-4 border-b border-black/[0.04]">
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-[11px] font-medium text-black/40 uppercase tracking-wider">Free tier</span>
-                  {Object.entries(FREE_LIMITS).some(([action]) => {
-                    const remaining = getRemainingUses(action);
-                    return remaining !== Infinity && remaining < FREE_LIMITS[action];
-                  }) && (
-                    <button
-                      onClick={() => setShowProModal(true)}
-                      className="text-[10px] font-medium text-black/50 hover:text-black/70 transition-colors"
-                    >
-                      Upgrade →
-                    </button>
-                  )}
-                </div>
-                <div className="grid grid-cols-3 gap-2 text-xs">
-                  {focusActionButtons.map((item) => {
-                    const remaining = getRemainingUses(item.action);
-                    const limit = FREE_LIMITS[item.action] || 0;
-                    const used = focusUsage[item.action] || 0;
-                    const showCount = remaining !== Infinity;
-                    const isLow = showCount && remaining <= 1;
-                    return (
-                      <div
-                        key={item.action}
-                        className={cn(
-                          "px-2.5 py-2 rounded-lg border",
-                          isLow
-                            ? "bg-rose-50/60 border-rose-200/60 text-rose-600"
-                            : "bg-white/60 border-black/[0.08] text-black/60"
-                        )}
-                      >
-                        <div className="font-medium truncate text-[11px]">{item.label}</div>
-                        {showCount ? (
-                          <div className="text-[10px] text-black/40 mt-0.5">
-                            {used}/{limit}
-                          </div>
-                        ) : (
-                          <div className="text-[10px] text-emerald-600 mt-0.5">∞</div>
-                        )}
-                      </div>
-                    );
-                  })}
-                  <div className={cn(
-                    "px-2.5 py-2 rounded-lg border",
-                    getRemainingUses("chat") === Infinity
-                      ? "bg-white/60 border-black/[0.08] text-black/60"
-                      : (getRemainingUses("chat") <= 1
-                          ? "bg-rose-50/60 border-rose-200/60 text-rose-600"
-                          : "bg-white/60 border-black/[0.08] text-black/60")
-                  )}>
-                    <div className="font-medium truncate text-[11px]">Chat</div>
-                    {getRemainingUses("chat") === Infinity ? (
-                      <div className="text-[10px] text-emerald-600 mt-0.5">∞</div>
-                    ) : (
-                      <div className="text-[10px] text-black/40 mt-0.5">
-                        {focusUsage.chat || 0}/{FREE_LIMITS.chat}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className="px-5 py-3 border-b border-black/[0.04]">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="text-[11px] font-medium text-black/70">Pro</span>
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                  </div>
-                  <span className="text-[11px] text-black/40">
-                    {premiumPromptsUsed >= premiumPromptsLimit
-                      ? "Free models"
-                      : `${premiumPromptsLimit - premiumPromptsUsed} prompts`}
-                  </span>
-                </div>
-              </div>
-            )}
 
-            {/* Actions - BIGGER buttons */}
-            <div className="px-5 py-4 border-b border-black/[0.04]">
-              <div className="flex items-center justify-between mb-3">
-                 <h4 className="text-[11px] font-semibold uppercase tracking-wider text-black/30">Actions</h4>
+            {/* Actions - Compact */}
+            <div className="px-5 py-2.5 border-b border-black/[0.04]">
+              <div className="flex items-center justify-between mb-2">
+                 <h4 className="text-[10px] font-semibold uppercase tracking-wider text-black/30">Actions</h4>
                  <div className="flex bg-black/[0.04] p-0.5 rounded-lg">
                     <button
                       onClick={() => setFocusViewMode("text")}
-                      className={`px-2 py-0.5 rounded-md text-[10px] font-medium transition-all ${focusViewMode === "text" ? "bg-white shadow-sm text-black" : "text-black/40 hover:text-black/60"}`}
+                      className={`px-1.5 py-0.5 rounded-md text-[9px] font-medium transition-all ${focusViewMode === "text" ? "bg-white shadow-sm text-black" : "text-black/40 hover:text-black/60"}`}
                     >
                       Text
                     </button>
                     <button
                       onClick={() => setFocusViewMode("icons")}
-                      className={`px-2 py-0.5 rounded-md text-[10px] font-medium transition-all ${focusViewMode === "icons" ? "bg-white shadow-sm text-black" : "text-black/40 hover:text-black/60"}`}
+                      className={`px-1.5 py-0.5 rounded-md text-[9px] font-medium transition-all ${focusViewMode === "icons" ? "bg-white shadow-sm text-black" : "text-black/40 hover:text-black/60"}`}
                     >
                       Icons
                     </button>
@@ -2253,7 +2664,7 @@ export default function AppPage() {
                           }}
                           disabled={!selectedText || isFocusLoading || !allowed}
                           className={cn(
-                            "px-3 py-1.5 text-sm rounded-lg transition-all",
+                            "px-2 py-1 text-xs rounded-md transition-all",
                             !allowed
                               ? "text-black/20 cursor-not-allowed"
                               : selectedText && !isFocusLoading
@@ -2280,7 +2691,7 @@ export default function AppPage() {
                     {focusActionButtons.map((item) => {
                       const remaining = getRemainingUses(item.action);
                       const allowed = remaining > 0 || remaining === Infinity;
-                      const Icon = focusActionIcons[item.action] || Sparkles;
+                      const Icon = focusActionIcons[item.action] || Wand2;
                       return (
                         <motion.button
                           layout
@@ -2297,7 +2708,7 @@ export default function AppPage() {
                           whileHover={allowed && selectedText ? { scale: 1.05 } : {}}
                           whileTap={allowed && selectedText ? { scale: 0.95 } : {}}
                           className={cn(
-                            "w-9 h-9 flex items-center justify-center rounded-lg border transition-all",
+                            "w-7 h-7 flex items-center justify-center rounded-md border transition-all",
                             !allowed
                               ? "bg-gray-50 border-gray-100 opacity-50 cursor-not-allowed"
                               : selectedText && !isFocusLoading
@@ -2306,7 +2717,7 @@ export default function AppPage() {
                           )}
                           title={item.label}
                         >
-                           <Icon size={18} className={cn(
+                           <Icon size={14} className={cn(
                              "mb-0", 
                              selectedText && !isFocusLoading && allowed ? "text-black/70" : "text-black/30"
                            )} />
@@ -2318,10 +2729,10 @@ export default function AppPage() {
               </AnimatePresence>
             </div>
 
-            {/* Chat area - BIGGER */}
+            {/* Chat area - More space */}
             <div
               ref={focusChatRef}
-              className="flex-1 overflow-y-auto"
+              className="flex-1 overflow-y-auto min-h-0"
             >
               {focusChat.length === 0 ? (
                 <div className="h-full flex flex-col items-center justify-center px-10 text-center">
@@ -2465,8 +2876,8 @@ export default function AppPage() {
               )}
             </div>
 
-            {/* Input - BIGGER */}
-            <form onSubmit={handleFocusChatSubmit} className="p-5 border-t border-black/[0.06]">
+            {/* Input - Compact */}
+            <form onSubmit={handleFocusChatSubmit} className="p-4 border-t border-black/[0.06] flex-shrink-0">
               {!isActionAllowed('chat') ? (
                   <div className="text-center py-4 px-5">
                       <p className="text-sm text-black/50 mb-3">Free chat limit reached.</p>
@@ -2508,10 +2919,10 @@ export default function AppPage() {
 
             {/* Footer with clear */}
             {focusChat.length > 0 && (
-              <div className="px-5 py-3 border-t border-black/[0.04]">
+              <div className="px-5 py-2 border-t border-black/[0.04] flex-shrink-0">
                 <button
                   onClick={() => setFocusChat([])}
-                  className="text-sm text-black/30 hover:text-black/55 transition-colors"
+                  className="text-xs text-black/30 hover:text-black/55 transition-colors"
                 >
                   Clear conversation
                 </button>
@@ -2522,6 +2933,20 @@ export default function AppPage() {
         )}
       </AnimatePresence>
 
+      {/* Quick Check Panel */}
+      <QuickCheckPanel
+        isOpen={showQuickCheckPanel}
+        onClose={() => {
+          setShowQuickCheckPanel(false);
+          setHoveredSuggestion(null);
+        }}
+        isLoading={quickCheckLoading}
+        suggestions={quickCheckSuggestions}
+        onApply={applyQuickCheckSuggestion}
+        onDismiss={dismissQuickCheckSuggestion}
+        onApplyAll={applyAllQuickCheckSuggestions}
+        onHoverSuggestion={setHoveredSuggestion}
+      />
 
       {/* Focus Mode Intro */}
       <AnimatePresence>
@@ -2717,7 +3142,7 @@ export default function AppPage() {
                     Welcome to Eliee
                   </h2>
                   <p className="text-sm text-black/40 leading-relaxed">
-                    A reasoning document designed for clarity.
+                    Your AI-powered writing companion for clearer, sharper thinking.
                   </p>
                 </div>
 
@@ -2725,8 +3150,8 @@ export default function AppPage() {
                   <div className="flex items-baseline gap-4 group">
                     <span className="text-[10px] font-bold text-black/20 uppercase tracking-widest w-4">01</span>
                     <div>
-                      <h3 className="font-medium text-black/70 text-[15px] mb-1">Write naturally</h3>
-                      <p className="text-[13px] text-black/40 leading-relaxed">Type your thoughts. Right-click to add reasoning blocks.</p>
+                      <h3 className="font-medium text-black/70 text-[15px] mb-1">Write with AI assistance</h3>
+                      <p className="text-[13px] text-black/40 leading-relaxed">Write your thoughts while AI helps improve clarity, expand ideas, and catch errors in real-time.</p>
                     </div>
                   </div>
 
@@ -2734,15 +3159,15 @@ export default function AppPage() {
                     <span className="text-[10px] font-bold text-black/20 uppercase tracking-widest w-4">02</span>
                     <div>
                       <h3 className="font-medium text-black/70 text-[15px] mb-1">Focus Mode <span className="text-[9px] text-black/20 font-medium px-1 py-0.5 rounded bg-black/[0.03]">⌘K</span></h3>
-                      <p className="text-[13px] text-black/40 leading-relaxed">Highlight text → fact-check, find synonyms, expand, or simplify. Your AI writing partner.</p>
+                      <p className="text-[13px] text-black/40 leading-relaxed">Select text to fact-check claims, find better words, simplify complex sentences, or ask questions about your writing.</p>
                     </div>
                   </div>
 
                   <div className="flex items-baseline gap-4 group">
                     <span className="text-[10px] font-bold text-black/20 uppercase tracking-widest w-4">03</span>
                     <div>
-                      <h3 className="font-medium text-black/70 text-[15px] mb-1">Visualize</h3>
-                      <p className="text-[13px] text-black/40 leading-relaxed">When stuck, hit Visualize to see your logic as a map and spot gaps.</p>
+                      <h3 className="font-medium text-black/70 text-[15px] mb-1">Think clearly</h3>
+                      <p className="text-[13px] text-black/40 leading-relaxed">Organize your reasoning with structured blocks. Mark claims, assumptions, evidence, and decisions to build stronger arguments.</p>
                     </div>
                   </div>
                 </div>
@@ -2978,11 +3403,15 @@ export default function AppPage() {
                       <h3 className="text-[15px] text-black/90" style={{ fontFamily: "Georgia, serif", fontStyle: "italic" }}>Upgrade to Pro</h3>
                       <p className="text-[12px] text-black/50 mt-0.5">
                         {limitReachedAction === 'chat'
-                          ? 'Premium chat limit reached'
+                          ? isPro
+                            ? 'Premium chat limit reached'
+                            : 'Free chat limit reached'
                           : limitReachedAction === 'counterargument'
                           ? 'Counterargument limit reached'
                           : limitReachedAction === 'improve' || limitReachedAction === 'polish'
                           ? 'Polish limit reached'
+                          : limitReachedAction === 'quick_check'
+                          ? 'Quick Check limit reached'
                           : 'Action limit reached'}
                       </p>
                     </div>
@@ -3000,7 +3429,11 @@ export default function AppPage() {
                   <div className="mb-5">
                     <p className="text-[13px] text-black/60 leading-relaxed mb-4">
                       {limitReachedAction === 'chat'
-                        ? "You've used your 150 premium chat prompts this month. Upgrade for more premium access, or continue with free models."
+                        ? isPro
+                          ? "You've used your 150 premium chat prompts this month. Upgrade for more premium access, or continue with free models."
+                          : "You've used all 10 free chat messages. Upgrade to Pro for 150 premium chat prompts/month and more access."
+                        : limitReachedAction === 'quick_check'
+                        ? "You've used all 3 free Quick Checks. Upgrade to Pro for unlimited Quick Check access."
                         : "You've reached your limit for this feature. Upgrade to Pro for unlimited access."}
                     </p>
 
@@ -3250,6 +3683,99 @@ export default function AppPage() {
           </>
         )}
       </AnimatePresence>
+
+      {/* Quick Check Beta Modal */}
+      <AnimatePresence>
+        {showQuickCheckBetaModal && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[200]"
+              onClick={() => setShowQuickCheckBetaModal(false)}
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.98, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.98, y: 10 }}
+              className="fixed inset-0 z-[201] flex items-center justify-center p-6 pointer-events-none"
+            >
+              <div className="bg-[#f5f3ef] rounded-2xl shadow-2xl max-w-md w-full p-8 pointer-events-auto border border-black/[0.03]">
+                <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center">
+                      <CheckCheck size={20} className="text-white" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h2 className="text-lg font-semibold text-black/80">Quick Check</h2>
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold tracking-wide bg-amber-100 text-amber-700">
+                          BETA
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setShowQuickCheckBetaModal(false)}
+                    className="p-1.5 hover:bg-black/5 rounded-lg transition-colors"
+                  >
+                    <X size={18} className="text-black/30" />
+                  </button>
+                </div>
+
+                <div className="space-y-4 text-sm text-black/60 mb-6">
+                  <p className="text-black/70 leading-relaxed">
+                    Quick Check scans your entire document for grammar issues, clarity improvements, and style suggestions - all at once.
+                  </p>
+                  <div className="bg-white/60 rounded-xl p-4 border border-black/[0.04]">
+                    <p className="text-[13px] font-medium text-black/70 mb-2">What it does:</p>
+                    <ul className="space-y-2 text-[13px] text-black/50">
+                      <li className="flex items-start gap-2">
+                        <span className="w-1.5 h-1.5 rounded-full bg-rose-400 mt-1.5 flex-shrink-0" />
+                        <span><span className="text-rose-600 font-medium">Errors</span> - Grammar and spelling mistakes</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <span className="w-1.5 h-1.5 rounded-full bg-amber-400 mt-1.5 flex-shrink-0" />
+                        <span><span className="text-amber-600 font-medium">Warnings</span> - Clarity and readability issues</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <span className="w-1.5 h-1.5 rounded-full bg-blue-400 mt-1.5 flex-shrink-0" />
+                        <span><span className="text-blue-600 font-medium">Suggestions</span> - Style and word choice improvements</span>
+                      </li>
+                    </ul>
+                  </div>
+                  <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-50 border border-amber-100">
+                    <AlertTriangle size={16} className="text-amber-600 mt-0.5 flex-shrink-0" />
+                    <p className="text-[12px] text-amber-700 leading-relaxed">
+                      This feature is still in development. Results may not always be accurate. We&apos;re actively improving it based on feedback.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setShowQuickCheckBetaModal(false)}
+                    className="flex-1 px-4 py-3 bg-black/5 text-black/70 rounded-xl text-sm font-medium hover:bg-black/10 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowQuickCheckBetaModal(false);
+                      handleToggleQuickCheck();
+                    }}
+                    className="flex-1 px-4 py-3 bg-gradient-to-r from-violet-600 to-purple-600 text-white rounded-xl text-sm font-medium hover:from-violet-700 hover:to-purple-700 transition-all shadow-lg shadow-violet-500/20"
+                  >
+                    Try Quick Check
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
     </div>
   );
 }

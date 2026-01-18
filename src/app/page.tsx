@@ -15,10 +15,10 @@ import {
   User,
   RefreshCw,
   ArrowRight,
-  Sparkles,
   Zap,
   MessageSquare,
-  Check
+  Check,
+  Wand2
 } from "lucide-react";
 import { useSession } from "@/lib/auth-client";
 import posthog from "posthog-js";
@@ -493,7 +493,7 @@ function LandingPage() {
               viewport={{ once: true }}
             >
               <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/[0.04] text-[#1a1a1a] text-xs font-medium mb-6">
-                <Sparkles size={12} />
+                <Wand2 size={12} />
                 Transform
               </div>
               <h2 className="text-3xl md:text-4xl font-semibold text-[#1a1a1a] tracking-tight mb-6 leading-tight">
@@ -562,7 +562,7 @@ function LandingPage() {
                   </div>
                   <div className="flex gap-3">
                     <div className="w-8 h-8 rounded-full bg-[#1a1a1a] flex-shrink-0 flex items-center justify-center">
-                      <Sparkles size={14} className="text-white" />
+                      <Wand2 size={14} className="text-white" />
                     </div>
                     <div className="flex-1 p-4 bg-[#FAFAFA] rounded-xl">
                       <p className="text-sm text-[#333] leading-relaxed">
