@@ -16,23 +16,64 @@ export async function POST(req: NextRequest) {
             apiVersion: "2025-01-27.acacia" as any,
         });
 
-        // Find customer
-        const customers = await stripe.customers.list({
-            email: session.user.email,
-            limit: 1
-        });
+        let customerId: string | null = null;
 
-        if (customers.data.length === 0) {
+        // Method 1: Find subscription by userId in metadata (most reliable)
+        try {
+            const subscriptions = await stripe.subscriptions.search({
+                query: `status:'active' AND metadata['userId']:'${session.user.id}'`,
+            });
+
+            if (subscriptions.data.length > 0) {
+                customerId = subscriptions.data[0].customer as string;
+            }
+        } catch (searchError) {
+            console.log("Subscription search failed, trying email lookup:", searchError);
+        }
+
+        // Method 2: Fallback to finding customer by email
+        if (!customerId) {
+            const customers = await stripe.customers.list({
+                email: session.user.email,
+                limit: 1
+            });
+
+            if (customers.data.length > 0) {
+                customerId = customers.data[0].id;
+            }
+        }
+
+        // Method 3: Search all subscriptions and match by email
+        if (!customerId) {
+            try {
+                const allActiveSubs = await stripe.subscriptions.list({
+                    status: 'active',
+                    limit: 100,
+                    expand: ['data.customer']
+                });
+
+                for (const sub of allActiveSubs.data) {
+                    const customer = sub.customer as Stripe.Customer;
+                    if (customer.email === session.user.email) {
+                        customerId = customer.id;
+                        break;
+                    }
+                }
+            } catch (listError) {
+                console.log("Subscription list failed:", listError);
+            }
+        }
+
+        if (!customerId) {
             return NextResponse.json({ error: "No customer found" }, { status: 404 });
         }
 
-        const customer = customers.data[0];
         const returnUrl = process.env.NEXT_PUBLIC_APP_URL
             ? `${process.env.NEXT_PUBLIC_APP_URL}/settings`
             : `${req.nextUrl.origin}/settings`;
 
         const portalSession = await stripe.billingPortal.sessions.create({
-            customer: customer.id,
+            customer: customerId,
             return_url: returnUrl,
         });
 

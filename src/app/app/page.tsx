@@ -1863,17 +1863,45 @@ export default function AppPage() {
                 <span>{showVisualView ? "Refresh" : "Visualize"}</span>
               </button>
             ) : documentType === "ai_native" ? (
-              <button
-                onClick={handleToggleFocusMode}
-                className={cn(
-                  "w-full py-3 rounded-lg text-[13px] font-medium transition-colors text-center",
-                  showFocusMode
-                    ? "bg-black text-white"
-                    : "bg-black/[0.04] text-black/70 hover:bg-black/[0.06]"
-                )}
-              >
-                Focus Mode
-              </button>
+              <div className="space-y-3">
+                <button
+                  onClick={handleToggleFocusMode}
+                  className={cn(
+                    "w-full py-3 rounded-lg text-[13px] font-medium transition-colors text-center",
+                    showFocusMode
+                      ? "bg-black text-white"
+                      : "bg-black/[0.04] text-black/70 hover:bg-black/[0.06]"
+                  )}
+                >
+                  Focus Mode
+                </button>
+                {/* Quick Check Button - Sidebar */}
+                <button
+                  onClick={() => setShowQuickCheckBetaModal(true)}
+                  disabled={quickCheckLoading}
+                  className={cn(
+                    "group relative w-full flex items-center justify-center gap-2 py-3 rounded-lg text-[13px] font-medium transition-all",
+                    showQuickCheckPanel
+                      ? "bg-violet-600 text-white"
+                      : "bg-black/[0.04] text-black/70 hover:bg-black/[0.06]"
+                  )}
+                >
+                  {quickCheckLoading ? (
+                    <div className="w-4 h-4 border-2 border-current/30 border-t-current rounded-full animate-spin" />
+                  ) : (
+                    <CheckCheck size={16} className={showQuickCheckPanel ? "text-white" : "text-violet-500"} />
+                  )}
+                  <span>Quick Check</span>
+                  <span className={cn(
+                    "px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wide",
+                    showQuickCheckPanel
+                      ? "bg-white/20 text-white"
+                      : "bg-amber-100 text-amber-700"
+                  )}>
+                    BETA
+                  </span>
+                </button>
+              </div>
             ) : null}
 
             {error && <div className="p-4 rounded-xl bg-rose-50 border border-rose-100 text-rose-600 text-sm">{error}</div>}
