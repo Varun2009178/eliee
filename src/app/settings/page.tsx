@@ -28,7 +28,7 @@ export default function SettingsPage() {
   const [managingSubscription, setManagingSubscription] = useState(false);
   const [subscriptionError, setSubscriptionError] = useState<string | null>(null);
 
-  useEffect(() => {
+  const refreshBillingStatus = () => {
     if (session) {
       fetch("/api/stripe/status")
         .then((res) => res.json())
@@ -41,6 +41,20 @@ export default function SettingsPage() {
           setLoadingBilling(false);
         });
     }
+  };
+
+  // Load billing status on mount
+  useEffect(() => {
+    refreshBillingStatus();
+  }, [session]);
+
+  // Refresh billing status when returning from Stripe portal (page regains focus)
+  useEffect(() => {
+    const handleFocus = () => {
+      refreshBillingStatus();
+    };
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
   }, [session]);
 
   const handleManageSubscription = async () => {

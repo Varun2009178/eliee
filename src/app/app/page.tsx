@@ -2609,19 +2609,6 @@ export default function AppPage() {
                     </span>
                   </div>
                 )}
-                {/* Quick Check button in Focus Mode */}
-                <button
-                  onClick={() => {
-                    setShowFocusMode(false);
-                    setTimeout(() => handleToggleQuickCheck(), 100);
-                  }}
-                  disabled={quickCheckLoading}
-                  className="group flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium bg-gradient-to-r from-violet-50 to-purple-50 text-violet-600 hover:from-violet-500 hover:to-purple-600 hover:text-white border border-violet-200/50 hover:border-transparent transition-all"
-                  title="Quick Check (⌘⇧C)"
-                >
-                  <CheckCheck size={12} className="text-violet-500 group-hover:text-white transition-colors" />
-                  <span>Check</span>
-                </button>
                 <select
                   value={focusModel}
                   onMouseDown={(e) => e.stopPropagation()} // Prevent selection clearing
