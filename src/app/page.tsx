@@ -1,782 +1,720 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  FileText,
+  ArrowRight,
   Eye,
-  Target,
+  ListTree,
   Lightbulb,
-  AlertTriangle,
-  ChevronDown,
+  Check,
+  Sparkles,
   ChevronLeft,
   ChevronRight,
-  LayoutPanelLeft,
-  User,
-  RefreshCw,
-  ArrowRight,
-  Zap,
-  MessageSquare,
-  Check,
-  Wand2
+  Wand2,
+  Brain,
+  FileCheck,
+  FolderOpen,
 } from "lucide-react";
 import { useSession } from "@/lib/auth-client";
 import posthog from "posthog-js";
 
-// --- Landing Page Component ---
-function LandingPage() {
-  const { data: session } = useSession();
+// Cursor component
+function Cursor({ x, y, visible = true }: { x: number; y: number; visible?: boolean }) {
+  if (!visible) return null;
+  return (
+    <motion.div
+      className="absolute pointer-events-none z-50"
+      style={{ left: 0, top: 0 }}
+      animate={{ x, y }}
+      transition={{ type: "spring", damping: 30, stiffness: 300 }}
+    >
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+        <path
+          d="M5.5 3.21V20.8c0 .45.54.67.85.35l4.86-4.86a.5.5 0 0 1 .35-.15h6.87c.48 0 .72-.58.38-.92L6.35 2.88a.5.5 0 0 0-.85.33Z"
+          fill="#000"
+          stroke="#fff"
+          strokeWidth="1.5"
+        />
+      </svg>
+    </motion.div>
+  );
+}
 
-  // Demo prompts that users can swipe through
-  const demoPrompts = [
-    "We should expand into the enterprise market this quarter.",
-    "Our product needs better onboarding to reduce churn.",
-    "I believe remote work increases productivity for most teams.",
-    "The main risk is running out of runway before finding PMF.",
+// Interactive demo component with manual navigation
+function InteractiveDemo() {
+  const [activeDemo, setActiveDemo] = useState(0);
+  const [cursorPos, setCursorPos] = useState({ x: 40, y: 140 });
+  const [selectionEnd, setSelectionEnd] = useState(0);
+  const [showMenu, setShowMenu] = useState(false);
+  const [showResult, setShowResult] = useState(false);
+  const [activeAction, setActiveAction] = useState<string | null>(null);
+  const [isAnimating, setIsAnimating] = useState(false);
+
+  const demos = [
+    {
+      action: "Find Synonyms",
+      icon: Eye,
+      textBefore: "We need to ",
+      highlightText: "expand into the enterprise market",
+      textAfter: " this quarter.",
+      result: "grow into, scale to, move into, venture into, branch out to",
+    },
+    {
+      action: "Extract Claims",
+      icon: ListTree,
+      textBefore: "The team believes ",
+      highlightText: "remote work increases productivity",
+      textAfter: " based on studies.",
+      result: "1. Remote work affects productivity\n2. The effect is positive\n3. Evidence exists from studies",
+    },
+    {
+      action: "Counter",
+      icon: Lightbulb,
+      textBefore: "Our analysis shows ",
+      highlightText: "the main risk is running out of runway",
+      textAfter: ".",
+      result: "However, constraints can accelerate focus. Some argue urgency drives better decisions.",
+    },
   ];
 
-  const [currentPromptIndex, setCurrentPromptIndex] = useState(0);
-  const [selectedAction, setSelectedAction] = useState<string | null>(null);
-  const [aiResult, setAiResult] = useState<string | null>(null);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [viewMode, setViewMode] = useState<"text" | "icons">("text");
+  const currentDemo = demos[activeDemo];
+  const Icon = currentDemo.icon;
+  const textBeforeWidth = currentDemo.textBefore.length * 10;
 
-  const demoText = demoPrompts[currentPromptIndex];
+  const runAnimation = useCallback(async () => {
+    if (isAnimating) return;
+    setIsAnimating(true);
 
-  const handleGetStarted = () => {
+    // Reset
+    setSelectionEnd(0);
+    setShowMenu(false);
+    setShowResult(false);
+    setActiveAction(null);
+    setCursorPos({ x: 40, y: 140 });
+
+    await new Promise(r => setTimeout(r, 400));
+
+    const startX = 48 + textBeforeWidth;
+    setCursorPos({ x: startX, y: 72 });
+    await new Promise(r => setTimeout(r, 400));
+
+    const textLength = currentDemo.highlightText.length;
+    for (let i = 0; i <= textLength; i++) {
+      setSelectionEnd(i);
+      setCursorPos({ x: startX + (i * 10), y: 72 });
+      await new Promise(r => setTimeout(r, 20));
+    }
+
+    await new Promise(r => setTimeout(r, 250));
+    setShowMenu(true);
+    await new Promise(r => setTimeout(r, 350));
+    setCursorPos({ x: startX + 70, y: 18 });
+    await new Promise(r => setTimeout(r, 300));
+    setActiveAction(currentDemo.action);
+    await new Promise(r => setTimeout(r, 150));
+    setShowResult(true);
+    setShowMenu(false);
+    setIsAnimating(false);
+  }, [currentDemo, textBeforeWidth, isAnimating]);
+
+  useEffect(() => {
+    runAnimation();
+  }, [activeDemo]);
+
+  const goToDemo = (index: number) => {
+    if (isAnimating) return;
+    setActiveDemo(index);
+  };
+
+  const nextDemo = () => {
+    if (isAnimating) return;
+    setActiveDemo((prev) => (prev + 1) % demos.length);
+  };
+
+  const prevDemo = () => {
+    if (isAnimating) return;
+    setActiveDemo((prev) => (prev - 1 + demos.length) % demos.length);
+  };
+
+  return (
+    <div className="relative w-full">
+      {/* Browser window */}
+      <div className="bg-[#1a1a1a] rounded-2xl lg:rounded-3xl overflow-hidden shadow-2xl border border-white/[0.08]">
+        {/* Browser chrome */}
+        <div className="px-4 sm:px-6 py-3 sm:py-4 flex items-center gap-3 border-b border-white/5">
+          <div className="flex gap-2">
+            <div className="w-3 h-3 rounded-full bg-[#ff5f57]" />
+            <div className="w-3 h-3 rounded-full bg-[#febc2e]" />
+            <div className="w-3 h-3 rounded-full bg-[#28c840]" />
+          </div>
+          <div className="flex-1 flex justify-center">
+            <div className="px-6 sm:px-10 py-1.5 rounded-lg bg-white/5 text-white/40 text-xs sm:text-sm">
+              eliee.sh/app
+            </div>
+          </div>
+          <div className="w-14" />
+        </div>
+
+        {/* App content */}
+        <div className="bg-[#f8f7f4] relative">
+          {/* App header */}
+          <div className="bg-white/90 backdrop-blur border-b border-black/5 px-4 sm:px-8 py-3 sm:py-4 flex items-center justify-between">
+            <div className="flex items-center gap-2 sm:gap-3">
+              <img src="/eliee_logo.jpg" alt="Eliee" className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg" />
+              <span className="font-medium text-sm sm:text-base text-black/70">Strategy Document</span>
+            </div>
+            <div className="flex items-center gap-2 text-xs sm:text-sm text-black/40">
+              <div className="w-2 h-2 rounded-full bg-emerald-500" />
+              Saved
+            </div>
+          </div>
+
+          {/* Document area */}
+          <div className="p-6 sm:p-10 lg:p-12 relative min-h-[280px] sm:min-h-[340px] lg:min-h-[400px]">
+            <Cursor x={cursorPos.x} y={cursorPos.y} visible={!showResult} />
+
+            {/* Document text */}
+            <div className="text-base sm:text-lg lg:text-xl leading-[2] text-black/80 relative font-normal max-w-3xl">
+              {currentDemo.textBefore}
+              <span className="relative">
+                {selectionEnd > 0 ? (
+                  <>
+                    <span className="bg-blue-300/70 rounded-sm">
+                      {currentDemo.highlightText.slice(0, selectionEnd)}
+                    </span>
+                    <span>{currentDemo.highlightText.slice(selectionEnd)}</span>
+                  </>
+                ) : (
+                  currentDemo.highlightText
+                )}
+
+                <AnimatePresence>
+                  {showMenu && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 8, scale: 0.95 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: 8, scale: 0.95 }}
+                      className="absolute left-0 -top-14 z-20"
+                    >
+                      <div className="flex items-center gap-1 px-2 py-2 bg-white rounded-xl shadow-2xl border border-black/10">
+                        <div
+                          className={`flex items-center gap-2 px-3 sm:px-4 py-2 sm:py-2.5 rounded-lg text-sm font-medium transition-all ${
+                            activeAction === currentDemo.action
+                              ? "bg-black text-white"
+                              : "text-black/70 hover:bg-black/5"
+                          }`}
+                        >
+                          <Icon size={16} />
+                          {currentDemo.action}
+                        </div>
+                        <div className="px-3 py-2 rounded-lg text-sm text-black/40 hidden sm:block">
+                          Expand
+                        </div>
+                        <div className="px-3 py-2 rounded-lg text-sm text-black/40 hidden sm:block">
+                          Simplify
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </span>
+              {currentDemo.textAfter}
+            </div>
+
+            <AnimatePresence>
+              {showResult && (
+                <motion.div
+                  initial={{ opacity: 0, y: 16 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.3 }}
+                  className="mt-8 sm:mt-10 p-5 sm:p-6 rounded-xl bg-white border border-black/8 shadow-sm max-w-2xl"
+                >
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-black flex items-center justify-center">
+                      <Sparkles size={14} className="text-white" />
+                    </div>
+                    <span className="text-sm font-medium text-black/50">{currentDemo.action}</span>
+                  </div>
+                  <div className="text-sm sm:text-base text-black/70 whitespace-pre-line leading-relaxed">
+                    {currentDemo.result}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        </div>
+      </div>
+
+      {/* Navigation controls */}
+      <div className="flex items-center justify-center gap-4 mt-6">
+        <button
+          onClick={prevDemo}
+          disabled={isAnimating}
+          className="p-2 rounded-full hover:bg-black/5 transition-colors disabled:opacity-30"
+        >
+          <ChevronLeft size={20} className="text-black/50" />
+        </button>
+
+        <div className="flex items-center gap-3">
+          {demos.map((demo, i) => (
+            <button
+              key={i}
+              onClick={() => goToDemo(i)}
+              disabled={isAnimating}
+              className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-all ${
+                i === activeDemo
+                  ? "bg-black text-white"
+                  : "text-black/50 hover:bg-black/5"
+              }`}
+            >
+              <demo.icon size={14} />
+              <span className="hidden sm:inline">{demo.action}</span>
+            </button>
+          ))}
+        </div>
+
+        <button
+          onClick={nextDemo}
+          disabled={isAnimating}
+          className="p-2 rounded-full hover:bg-black/5 transition-colors disabled:opacity-30"
+        >
+          <ChevronRight size={20} className="text-black/50" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// Feature section component
+function FeatureSection({
+  title,
+  description,
+  features,
+  visual,
+  reversed = false,
+}: {
+  title: string;
+  description: string;
+  features: string[];
+  visual: React.ReactNode;
+  reversed?: boolean;
+}) {
+  return (
+    <div className={`grid lg:grid-cols-2 gap-12 lg:gap-20 items-center ${reversed ? "lg:direction-rtl" : ""}`}>
+      <motion.div
+        initial={{ opacity: 0, x: reversed ? 20 : -20 }}
+        whileInView={{ opacity: 1, x: 0 }}
+        viewport={{ once: true }}
+        transition={{ duration: 0.5 }}
+        className={`${reversed ? "lg:order-2 lg:direction-ltr" : ""}`}
+      >
+        <h3 className="text-2xl sm:text-3xl lg:text-4xl font-semibold text-black mb-4">{title}</h3>
+        <p className="text-lg text-black/50 mb-6">{description}</p>
+        <ul className="space-y-3">
+          {features.map((feature, i) => (
+            <li key={i} className="flex items-start gap-3 text-black/70">
+              <Check size={20} className="text-emerald-500 mt-0.5 shrink-0" />
+              {feature}
+            </li>
+          ))}
+        </ul>
+      </motion.div>
+      <motion.div
+        initial={{ opacity: 0, x: reversed ? -20 : 20 }}
+        whileInView={{ opacity: 1, x: 0 }}
+        viewport={{ once: true }}
+        transition={{ duration: 0.5, delay: 0.1 }}
+        className={`${reversed ? "lg:order-1 lg:direction-ltr" : ""}`}
+      >
+        {visual}
+      </motion.div>
+    </div>
+  );
+}
+
+// Feature visual components
+function AIActionsVisual() {
+  return (
+    <div className="bg-[#1a1a1a] rounded-2xl p-1 shadow-2xl">
+      <div className="bg-[#f8f7f4] rounded-xl p-6 sm:p-8">
+        <div className="space-y-3">
+          {[
+            { icon: Eye, label: "Find Synonyms", desc: "Alternative words and phrases" },
+            { icon: Wand2, label: "Expand", desc: "Elaborate on your ideas" },
+            { icon: ListTree, label: "Extract Claims", desc: "Identify key assertions" },
+            { icon: Lightbulb, label: "Counter", desc: "Challenge your arguments" },
+          ].map((item, i) => (
+            <motion.div
+              key={i}
+              initial={{ opacity: 0, y: 10 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: i * 0.1 }}
+              className="flex items-center gap-4 p-4 rounded-xl bg-white border border-black/5 hover:border-black/10 transition-colors"
+            >
+              <div className="w-10 h-10 rounded-lg bg-black flex items-center justify-center shrink-0">
+                <item.icon size={18} className="text-white" />
+              </div>
+              <div>
+                <div className="font-medium text-black">{item.label}</div>
+                <div className="text-sm text-black/50">{item.desc}</div>
+              </div>
+            </motion.div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function FocusModeVisual() {
+  return (
+    <div className="bg-[#1a1a1a] rounded-2xl p-1 shadow-2xl">
+      <div className="bg-[#f8f7f4] rounded-xl overflow-hidden">
+        <div className="bg-white/90 border-b border-black/5 px-6 py-3 flex items-center gap-2">
+          <Brain size={18} className="text-emerald-600" />
+          <span className="font-medium text-black/70">Focus Mode</span>
+          <span className="ml-auto px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-xs font-medium">Active</span>
+        </div>
+        <div className="p-6 sm:p-8 space-y-4">
+          <div className="p-4 rounded-xl bg-white border border-black/5">
+            <div className="text-sm font-medium text-black/50 mb-2">Your thought</div>
+            <div className="text-black/80">"We should pivot to enterprise sales"</div>
+          </div>
+          <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-100">
+            <div className="text-sm font-medium text-emerald-700 mb-2">AI Analysis</div>
+            <div className="text-black/70 text-sm space-y-2">
+              <p>• Consider: What evidence supports this direction?</p>
+              <p>• Question: How does this align with current strengths?</p>
+              <p>• Explore: What are the resource implications?</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function QuickCheckVisual() {
+  return (
+    <div className="bg-[#1a1a1a] rounded-2xl p-1 shadow-2xl">
+      <div className="bg-[#f8f7f4] rounded-xl overflow-hidden">
+        <div className="bg-white/90 border-b border-black/5 px-6 py-3 flex items-center gap-2">
+          <FileCheck size={18} className="text-blue-600" />
+          <span className="font-medium text-black/70">Quick Check</span>
+          <span className="ml-auto px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 text-xs font-medium">Beta</span>
+        </div>
+        <div className="p-6 sm:p-8">
+          <div className="p-4 rounded-xl bg-white border border-black/5 mb-4">
+            <div className="text-black/80">"Studies show 73% of remote workers report higher productivity"</div>
+          </div>
+          <div className="space-y-3">
+            <div className="flex items-start gap-3 p-3 rounded-lg bg-amber-50 border border-amber-100">
+              <div className="w-5 h-5 rounded-full bg-amber-400 flex items-center justify-center shrink-0 mt-0.5">
+                <span className="text-white text-xs font-bold">!</span>
+              </div>
+              <div className="text-sm">
+                <div className="font-medium text-amber-800">Verify source</div>
+                <div className="text-amber-700/70">This statistic needs a citation</div>
+              </div>
+            </div>
+            <div className="flex items-start gap-3 p-3 rounded-lg bg-emerald-50 border border-emerald-100">
+              <Check size={18} className="text-emerald-600 shrink-0 mt-0.5" />
+              <div className="text-sm">
+                <div className="font-medium text-emerald-800">Claim identified</div>
+                <div className="text-emerald-700/70">Productivity correlation with remote work</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function OrganizationVisual() {
+  return (
+    <div className="bg-[#1a1a1a] rounded-2xl p-1 shadow-2xl">
+      <div className="bg-[#f8f7f4] rounded-xl overflow-hidden">
+        <div className="bg-white/90 border-b border-black/5 px-6 py-3 flex items-center gap-2">
+          <FolderOpen size={18} className="text-black/60" />
+          <span className="font-medium text-black/70">My Documents</span>
+        </div>
+        <div className="p-6 sm:p-8">
+          <div className="space-y-2">
+            {[
+              { name: "Q4 Strategy Brief", date: "2 hours ago", words: "1,247 words" },
+              { name: "Product Roadmap 2024", date: "Yesterday", words: "3,891 words" },
+              { name: "Team Retrospective", date: "3 days ago", words: "856 words" },
+              { name: "Investor Update Draft", date: "Last week", words: "2,103 words" },
+            ].map((doc, i) => (
+              <motion.div
+                key={i}
+                initial={{ opacity: 0, x: -10 }}
+                whileInView={{ opacity: 1, x: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: i * 0.1 }}
+                className="flex items-center gap-4 p-4 rounded-xl bg-white border border-black/5 hover:border-black/10 hover:shadow-sm transition-all cursor-pointer"
+              >
+                <div className="w-10 h-10 rounded-lg bg-black/5 flex items-center justify-center">
+                  <FileCheck size={18} className="text-black/40" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="font-medium text-black truncate">{doc.name}</div>
+                  <div className="text-sm text-black/40">{doc.words}</div>
+                </div>
+                <div className="text-sm text-black/40 shrink-0">{doc.date}</div>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function Home() {
+  const { data: session } = useSession();
+
+  const handleCTA = (location: string) => {
     posthog.capture("cta_clicked", {
-      button_location: "nav",
-      button_text: session ? "Go to App" : "Get started",
+      button_location: location,
       is_authenticated: !!session,
     });
     window.location.href = session ? "/app" : "/auth";
   };
 
-  const nextPrompt = () => {
-    setCurrentPromptIndex((prev) => (prev + 1) % demoPrompts.length);
-    setAiResult(null);
-    setSelectedAction(null);
-  };
-
-  const prevPrompt = () => {
-    setCurrentPromptIndex((prev) => (prev - 1 + demoPrompts.length) % demoPrompts.length);
-    setAiResult(null);
-    setSelectedAction(null);
-  };
-
-  // Map demo actions to API actions
-  const actionMap: Record<string, string> = {
-    paraphrase: "paraphrase_preserve",
-    synonyms: "find_similes",
-    simplify: "simplify",
-    expand: "expand",
-    counter: "counterargument",
-  };
-
-  const handleDemoAction = async (action: string) => {
-    if (!demoText.trim()) return;
-
-    // Track demo action usage
-    posthog.capture("demo_action_used", {
-      action_type: action,
-      prompt_index: currentPromptIndex,
-      prompt_text: demoText.substring(0, 100), // First 100 chars
-    });
-
-    setSelectedAction(action);
-    setIsProcessing(true);
-    setAiResult(null);
-
-    try {
-      const res = await fetch("/api/assist", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: actionMap[action] || action,
-          text: demoText,
-          model: "fast",
-        }),
-      });
-
-      const data = await res.json();
-      if (data.error) throw new Error(data.error);
-
-      let result = data.result || "";
-      result = result
-        .replace(/\*\*(.*?)\*\*/g, "$1")
-        .replace(/\*(.*?)\*/g, "$1")
-        .replace(/^#{1,6}\s+/gm, "")
-        .trim();
-
-      setAiResult(result);
-    } catch (err) {
-      setAiResult("Something went wrong. Try again.");
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
-  const demoActions = [
-    { id: "paraphrase", label: "Paraphrase", icon: FileText, color: "bg-blue-50 text-blue-600" },
-    { id: "synonyms", label: "Synonyms", icon: Eye, color: "bg-purple-50 text-purple-600" },
-    { id: "simplify", label: "Simplify", icon: LayoutPanelLeft, color: "bg-green-50 text-green-600" },
-    { id: "expand", label: "Expand", icon: Target, color: "bg-amber-50 text-amber-600" },
-    { id: "counter", label: "Counter", icon: Lightbulb, color: "bg-rose-50 text-rose-600" },
-  ];
-
   return (
-    <div className="min-h-screen bg-[#F7F7F4] relative overflow-x-hidden">
-      {/* Ambient glow effects - Monochrome/Silver style */}
-      <div className="fixed inset-0 pointer-events-none">
-        {/* Top left subtle glow */}
-        <div className="absolute -top-40 -left-40 w-[600px] h-[600px] bg-gradient-radial from-black/[0.03] via-black/[0.01] to-transparent rounded-full blur-3xl" />
-        {/* Top right subtle glow */}
-        <div className="absolute -top-20 -right-40 w-[500px] h-[500px] bg-gradient-radial from-black/[0.02] via-black/[0.01] to-transparent rounded-full blur-3xl" />
-        {/* Bottom left accent */}
-        <div className="absolute bottom-0 -left-20 w-[400px] h-[400px] bg-gradient-radial from-black/[0.02] via-transparent to-transparent rounded-full blur-3xl" />
-      </div>
+    <div className="min-h-screen bg-[#fafafa]">
+      {/* Navigation */}
+      <nav className="fixed top-0 left-0 right-0 z-50 bg-[#fafafa]/80 backdrop-blur-xl border-b border-black/5">
+        <div className="max-w-7xl mx-auto px-6 h-14 flex items-center justify-between">
+          <a href="/" className="flex items-center gap-2">
+            <img src="/eliee_logo.jpg" alt="Eliee" className="w-7 h-7 rounded-lg" />
+            <span className="font-semibold text-[15px] text-black/80">Eliee</span>
+          </a>
 
-      {/* Nav - Cursor.sh style */}
-      <nav className="h-16 flex items-center justify-between px-6 md:px-8 relative z-50 sticky top-0 bg-[#F7F7F4]/80 backdrop-blur-xl border-b border-black/[0.04]">
-        <a href="/" className="flex items-center gap-2.5 group">
-          <img src="/eliee_logo.jpg" alt="Logo" className="w-7 h-7 rounded-lg shadow-sm" />
-          <span className="font-semibold text-[#1a1a1a] text-[15px] tracking-tight">Eliee</span>
-        </a>
-        <div className="flex items-center gap-2 md:gap-6">
-          <a href="#features" className="text-[14px] text-[#666] hover:text-[#1a1a1a] transition-colors hidden md:block px-3 py-1.5">Features</a>
-          <a href="#how" className="text-[14px] text-[#666] hover:text-[#1a1a1a] transition-colors hidden md:block px-3 py-1.5">How it Works</a>
-              
-          {session ? (
-            <a 
-              href="/app"
-              className="flex items-center gap-2 px-5 py-2 rounded-full bg-[#1a1a1a] text-white text-[13px] font-medium hover:bg-[#333] transition-all shadow-lg shadow-black/10"
-            >
-              Go to App
-              <ArrowRight size={14} />
-            </a>
-          ) : (
-            <>
-              <a href="/auth" className="text-[14px] text-[#666] hover:text-[#1a1a1a] transition-colors px-3 py-1.5">Sign in</a>
-              <a 
-                href="/get-started" 
-                className="px-5 py-2 rounded-full bg-[#1a1a1a] text-white text-[13px] font-medium hover:bg-[#333] transition-all shadow-lg shadow-black/10"
+          <div className="hidden md:flex items-center gap-6">
+            <a href="#features" className="text-sm text-black/50 hover:text-black transition-colors">Features</a>
+            <a href="#pricing" className="text-sm text-black/50 hover:text-black transition-colors">Pricing</a>
+          </div>
+
+          <div className="flex items-center gap-3">
+            {session ? (
+              <button
+                onClick={() => handleCTA("nav")}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-black text-white text-sm font-medium hover:bg-black/80 transition-all"
               >
-                Get started
-              </a>
-            </>
-          )}
-        </div>
-      </nav>
-
-      {/* Hero - Cursor.sh inspired */}
-      <section className="flex flex-col items-center relative pt-24 md:pt-32 pb-20 px-4">
-        {/* Animated headline */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, ease: "easeOut" }}
-          className="text-center mb-6"
-        >
-          <h1 className="text-[2rem] md:text-[3rem] lg:text-[3.75rem] leading-[1.1] tracking-[-0.03em] text-[#1a1a1a] font-medium max-w-4xl">
-            Productive writing has never
-            <br className="hidden md:block" />
-            <span className="md:hidden"> </span>
-            been easier with{" "}
-            <motion.span
-              className="inline-block"
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.4, delay: 0.3, ease: "easeOut" }}
-            >
-              <span className="font-semibold text-[#1a1a1a]">
-                Eliee
-              </span>
-            </motion.span>
-            <span className="text-[#1a1a1a]">.</span>
-          </h1>
-        </motion.div>
-
-        {/* Subheadline */}
-        <motion.p
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.15 }}
-          className="text-[#666] text-base md:text-lg max-w-xl text-center mb-10 leading-relaxed"
-        >
-          An AI-native Google Docs alternative that helps you write clearer and faster.
-        </motion.p>
-
-        {/* CTA Buttons */}
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.25 }}
-          className="flex items-center gap-4 mb-16"
-        >
-          <a
-            href="/get-started"
-            className="px-6 py-3 rounded-full bg-[#1a1a1a] text-white text-[14px] font-medium hover:bg-[#333] transition-all shadow-xl shadow-black/15 flex items-center gap-2"
-          >
-            Start writing free
-            <ArrowRight size={16} />
-          </a>
-          <a
-            href="#features"
-            className="px-6 py-3 rounded-full bg-white/80 text-[#1a1a1a] text-[14px] font-medium hover:bg-white transition-all border border-black/[0.08] shadow-lg shadow-black/5"
-          >
-            See features
-          </a>
-        </motion.div>
-
-        {/* Interactive Demo Card */}
-        <motion.div
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.7, delay: 0.3 }}
-          className="w-full max-w-3xl relative"
-        >
-          {/* Card glow effect */}
-          {/* Card glow effect - disabled on mobile for performance */}
-          <div className="hidden md:block absolute -inset-4 bg-gradient-to-b from-black/[0.03] to-transparent rounded-[28px] blur-2xl opacity-60" />
-          
-          <div className="relative bg-white rounded-2xl shadow-2xl shadow-black/[0.08] border border-black/[0.06] overflow-hidden">
-            {/* Demo header */}
-            <div className="px-5 py-3 border-b border-black/[0.04] flex items-center gap-2">
-              <div className="flex gap-1.5">
-                <div className="w-3 h-3 rounded-full bg-[#E5E5E5]" />
-                <div className="w-3 h-3 rounded-full bg-[#E5E5E5]" />
-                <div className="w-3 h-3 rounded-full bg-[#E5E5E5]" />
-              </div>
-              <span className="text-xs text-[#999] ml-2">Try it live</span>
-            </div>
-
-            {/* Prompt area with swipe */}
-            <div className="p-6">
-              <div className="flex items-start gap-3">
-                <button
-                  onClick={prevPrompt}
-                  className="mt-1 p-2 rounded-lg hover:bg-black/[0.04] text-[#999] hover:text-[#666] transition-colors"
-                >
-                  <ChevronLeft size={18} />
-                </button>
-                <motion.p
-                  key={currentPromptIndex}
-                  initial={{ opacity: 0, x: 10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ duration: 0.2 }}
-                  className="flex-1 text-base md:text-lg text-[#1a1a1a] leading-relaxed"
-                >
-                  {demoText}
-                </motion.p>
-                <button
-                  onClick={nextPrompt}
-                  className="mt-1 p-2 rounded-lg hover:bg-black/[0.04] text-[#999] hover:text-[#666] transition-colors"
-                >
-                  <ChevronRight size={18} />
-                </button>
-              </div>
-              {/* Dots indicator */}
-              <div className="flex justify-center gap-1.5 mt-5">
-                {demoPrompts.map((_, i) => (
-                  <button
-                    key={i}
-                    onClick={() => {
-                      setCurrentPromptIndex(i);
-                      setAiResult(null);
-                      setSelectedAction(null);
-                    }}
-                    className={`h-1.5 rounded-full transition-all ${
-                      i === currentPromptIndex ? "bg-[#1a1a1a] w-4" : "bg-black/10 w-1.5"
-                    }`}
-                  />
-                ))}
-              </div>
-            </div>
-
-            {/* Divider */}
-            <div className="h-px bg-black/[0.04]" />
-
-            {/* Actions bar */}
-            <div className="px-5 py-4 bg-[#FAFAFA] flex flex-col gap-4">
-              <div className="flex items-center justify-between">
-                 <div className="flex bg-black/[0.04] p-1 rounded-lg">
-                    <button
-                      onClick={() => setViewMode("text")}
-                      className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${viewMode === "text" ? "bg-white shadow-sm text-black" : "text-black/40 hover:text-black/60"}`}
-                    >
-                      Text
-                    </button>
-                    <button
-                      onClick={() => setViewMode("icons")}
-                      className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${viewMode === "icons" ? "bg-white shadow-sm text-black" : "text-black/40 hover:text-black/60"}`}
-                    >
-                      Icons
-                    </button>
-                 </div>
-                 <a
-                  href="/get-started"
-                  className="px-4 py-2 rounded-full bg-[#1a1a1a] text-white text-[13px] font-medium hover:bg-[#333] transition-all shadow-lg shadow-black/10"
-                >
-                  Open editor
-                </a>
-              </div>
-
-              <AnimatePresence mode="wait">
-                {viewMode === "text" ? (
-                  <motion.div 
-                    key="text-mode"
-                    initial={{ opacity: 0, y: 5 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -5 }}
-                    transition={{ duration: 0.2 }}
-                    className="flex flex-wrap gap-2"
-                  >
-                    {demoActions.map((action) => (
-                      <button
-                        key={action.id}
-                        onClick={() => handleDemoAction(action.id)}
-                        disabled={isProcessing}
-                        className={`px-4 py-2 rounded-full text-[13px] font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
-                          selectedAction === action.id
-                            ? "bg-[#1a1a1a] text-white shadow-lg shadow-black/10"
-                            : "text-[#666] hover:bg-white hover:shadow-md border border-transparent hover:border-black/[0.04]"
-                        }`}
-                      >
-                        {action.label}
-                      </button>
-                    ))}
-                  </motion.div>
-                ) : (
-                  <motion.div 
-                    key="icon-mode"
-                    initial={{ opacity: 0, scale: 0.95 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.95 }}
-                    transition={{ duration: 0.2 }}
-                    className="flex flex-wrap gap-2"
-                  >
-                    {demoActions.map((action) => {
-                      const Icon = action.icon;
-                      return (
-                        <motion.button
-                          key={action.id}
-                          onClick={() => handleDemoAction(action.id)}
-                          disabled={isProcessing}
-                          whileHover={{ scale: 1.05 }}
-                          whileTap={{ scale: 0.95 }}
-                          className={`relative w-11 h-11 md:w-10 md:h-10 rounded-xl flex items-center justify-center transition-shadow shadow-sm disabled:opacity-50 disabled:cursor-not-allowed ${
-                            selectedAction === action.id
-                              ? "bg-white ring-2 ring-black shadow-md z-10"
-                              : "bg-white hover:shadow-md border border-black/[0.04]"
-                          }`}
-                          title={action.label}
-                        >
-                           <div className={`${selectedAction === action.id ? "text-black" : "text-black/60"}`}>
-                             <Icon size={18} strokeWidth={selectedAction === action.id ? 2.5 : 2} />
-                           </div>
-                           {/* Active indicator dot */}
-                           {selectedAction === action.id && (
-                             <motion.div 
-                               layoutId="activeDot"
-                               className="absolute -bottom-1 w-1 h-1 rounded-full bg-black"
-                             />
-                           )}
-                        </motion.button>
-                      );
-                    })}
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-
-            {/* Response area - only shows when there's a result */}
-            {(isProcessing || aiResult) && (
+                Open App
+                <ArrowRight size={14} />
+              </button>
+            ) : (
               <>
-                <div className="h-px bg-black/[0.04]" />
-                <div className="p-6 bg-white">
-                  {isProcessing ? (
-                    <div className="flex items-center gap-3 text-[#999]">
-                      <div className="w-5 h-5 border-2 border-black/10 border-t-black/60 rounded-full animate-spin" />
-                      <span className="text-sm">Writing...</span>
-                    </div>
-                  ) : aiResult && (
-                    <motion.div
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      transition={{ duration: 0.2 }}
-                    >
-                      <p className="text-base text-[#333] leading-relaxed whitespace-pre-wrap">{aiResult}</p>
-                      <button
-                        onClick={() => handleDemoAction(selectedAction!)}
-                        className="mt-4 flex items-center gap-2 text-sm text-[#999] hover:text-[#666] transition-colors"
-                      >
-                        <RefreshCw size={14} />
-                        Regenerate
-                      </button>
-                    </motion.div>
-                  )}
-                </div>
+                <a href="/auth" className="text-sm text-black/50 hover:text-black transition-colors px-3 py-2">
+                  Sign in
+                </a>
+                <button
+                  onClick={() => handleCTA("nav")}
+                  className="px-4 py-2 rounded-lg bg-black text-white text-sm font-medium hover:bg-black/80 transition-all"
+                >
+                  Get started
+                </button>
               </>
             )}
           </div>
-        </motion.div>
-
-        {/* Subtle hint below */}
-        <p className="text-center text-sm text-[#999] mt-6">
-          Try it free — no account needed
-        </p>
-      </section>
-
-      {/* Social Proof - Cursor style */}
-      <section className="py-20 px-6 relative">
-        <div className="max-w-4xl mx-auto text-center">
-          <h2
-            className="text-2xl md:text-3xl text-[#1a1a1a] tracking-tight leading-relaxed"
-            style={{ fontFamily: "Georgia, 'Times New Roman', serif", fontStyle: "italic" }}
-          >
-            For the moments when thinking clearly actually matters.
-          </h2>
         </div>
-      </section>
+      </nav>
 
-      {/* Quick Features Grid - Card style */}
-      <section id="features" className="py-20 px-6 relative">
-        <div className="max-w-5xl mx-auto">
-          <div className="text-center mb-14">
-            <h2 className="text-2xl md:text-3xl font-semibold text-[#1a1a1a] tracking-tight mb-4">
-              Everything you need to write better
-            </h2>
-            <p className="text-[#666] text-base max-w-lg mx-auto">
-              AI-powered tools that help you write, not just check your grammar.
+      {/* Hero */}
+      <section className="pt-32 sm:pt-40 lg:pt-48 pb-16 sm:pb-20 lg:pb-24 px-6">
+        <div className="max-w-4xl mx-auto text-center mb-12 sm:mb-16 lg:mb-20">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6 }}
+          >
+            <h1 className="text-[2.25rem] sm:text-[3rem] lg:text-[3.75rem] font-semibold leading-[1.1] tracking-[-0.025em] text-black mb-6">
+              Your Unified Writing Workspace, <span className="text-emerald-600">Supercharged</span> with AI.
+            </h1>
+            <p className="text-lg sm:text-xl text-black/50 mb-8 sm:mb-10 max-w-2xl mx-auto">
+              <span className="text-black/70">Select text.</span> Click an action. <span className="text-emerald-600">Get instant results.</span> The smarter way to write, think, and create.
             </p>
-          </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {[
-              { icon: FileText, title: "Paraphrase", desc: "Rewrite with different words" },
-              { icon: Target, title: "Expand", desc: "Add depth and detail" },
-              { icon: LayoutPanelLeft, title: "Simplify", desc: "Make it clearer" },
-              { icon: Eye, title: "Synonyms", desc: "Find better words" },
-              { icon: Lightbulb, title: "Counter", desc: "Challenge your argument" },
-              { icon: AlertTriangle, title: "Fact Check", desc: "Verify your claims" },
-              { icon: ChevronDown, title: "Export", desc: "PDF, share, publish" },
-              { icon: MessageSquare, title: "Chat", desc: "Ask anything about your doc" },
-            ].map((feature, i) => {
-              const Icon = feature.icon;
-              return (
-                <motion.div
-                  key={i}
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ delay: i * 0.05 }}
-                  className="p-5 rounded-2xl bg-white border border-black/[0.04] hover:border-black/[0.08] hover:shadow-lg hover:shadow-black/[0.03] transition-all group cursor-default"
-                >
-                  <div className="w-10 h-10 rounded-xl bg-black/[0.03] flex items-center justify-center mb-4 group-hover:bg-black/[0.06] transition-colors">
-                    <Icon size={18} className="text-[#666] group-hover:text-[#1a1a1a] transition-colors" />
-                  </div>
-                  <h3 className="font-medium text-[15px] text-[#1a1a1a] mb-1">{feature.title}</h3>
-                  <p className="text-[13px] text-[#999]">{feature.desc}</p>
-                </motion.div>
-              );
-            })}
-          </div>
-        </div>
-      </section>
-
-      {/* Feature 1: Select and Transform */}
-      <section className="py-24 px-6 relative">
-        <div className="max-w-5xl mx-auto">
-          <div className="grid md:grid-cols-2 gap-16 items-center">
-            <motion.div
-              initial={{ opacity: 0, x: -20 }}
-              whileInView={{ opacity: 1, x: 0 }}
-              viewport={{ once: true }}
-            >
-              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/[0.04] text-[#1a1a1a] text-xs font-medium mb-6">
-                <Wand2 size={12} />
-                Transform
-              </div>
-              <h2 className="text-3xl md:text-4xl font-semibold text-[#1a1a1a] tracking-tight mb-6 leading-tight">
-                Select any text.<br />Transform it instantly.
-              </h2>
-              <p className="text-[#666] leading-relaxed mb-6 text-base">
-                Highlight a sentence and click. Paraphrase it, expand it, simplify it, or generate counterarguments. No prompts to write, no context to explain.
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {["Paraphrase", "Expand", "Simplify", "Synonyms", "Counter"].map((action, i) => (
-                  <span key={i} className="px-3 py-1.5 rounded-full bg-[#F0F0EC] text-[13px] font-medium text-[#666]">{action}</span>
-                ))}
-              </div>
-            </motion.div>
-            <motion.div
-              initial={{ opacity: 0, x: 20 }}
-              whileInView={{ opacity: 1, x: 0 }}
-              viewport={{ once: true }}
-              className="relative"
-            >
-              <div className="absolute -inset-4 bg-gradient-to-b from-black/[0.03] to-transparent rounded-[28px] blur-2xl" />
-              <div className="relative bg-white rounded-2xl border border-black/[0.06] p-6 shadow-xl shadow-black/[0.05]">
-                <div className="space-y-4">
-                  <div className="p-4 bg-black/[0.03] rounded-xl border border-black/[0.04]">
-                    <p className="text-sm text-[#333] leading-relaxed">
-                      <span className="bg-black/[0.08] px-1 rounded">We should expand into the enterprise market this quarter.</span>
-                    </p>
-                  </div>
-                  <div className="flex gap-2">
-                    <span className="px-3 py-1.5 rounded-full bg-[#1a1a1a] text-white text-xs font-medium">Simplify</span>
-                    <span className="px-3 py-1.5 rounded-full bg-[#F0F0EC] text-xs text-[#666]">Expand</span>
-                    <span className="px-3 py-1.5 rounded-full bg-[#F0F0EC] text-xs text-[#666]">Counter</span>
-                  </div>
-                  <div className="p-4 bg-[#FAFAFA] rounded-xl border border-black/[0.04]">
-                    <p className="text-sm text-[#333] leading-relaxed">
-                      Let's target big companies starting now.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-          </div>
-        </div>
-      </section>
-
-      {/* Feature 2: Chat with your document */}
-      <section id="how" className="py-24 px-6 relative">
-        <div className="max-w-5xl mx-auto">
-          <div className="grid md:grid-cols-2 gap-16 items-center">
-            <motion.div
-              initial={{ opacity: 0, x: -20 }}
-              whileInView={{ opacity: 1, x: 0 }}
-              viewport={{ once: true }}
-              className="order-2 md:order-1 relative"
-            >
-              <div className="absolute -inset-4 bg-gradient-to-b from-black/[0.03] to-transparent rounded-[28px] blur-2xl" />
-              <div className="relative bg-white rounded-2xl border border-black/[0.06] p-6 shadow-xl shadow-black/[0.05]">
-                <div className="space-y-4">
-                  <div className="flex gap-3">
-                    <div className="w-8 h-8 rounded-full bg-[#F0F0EC] flex-shrink-0 flex items-center justify-center">
-                      <User size={14} className="text-[#666]" />
-                    </div>
-                    <div className="flex-1 pt-1">
-                      <p className="text-sm text-[#333]">What are the main risks in my strategy doc?</p>
-                    </div>
-                  </div>
-                  <div className="flex gap-3">
-                    <div className="w-8 h-8 rounded-full bg-[#1a1a1a] flex-shrink-0 flex items-center justify-center">
-                      <Wand2 size={14} className="text-white" />
-                    </div>
-                    <div className="flex-1 p-4 bg-[#FAFAFA] rounded-xl">
-                      <p className="text-sm text-[#333] leading-relaxed">
-                        Based on your document, there are two main risks: 1) The sales cycle for enterprise could be 6-12 months, straining your runway. 2) Enterprise features may delay your product roadmap.
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex gap-3">
-                    <div className="w-8 h-8 rounded-full bg-[#F0F0EC] flex-shrink-0 flex items-center justify-center">
-                      <User size={14} className="text-[#666]" />
-                    </div>
-                    <div className="flex-1 pt-1">
-                      <p className="text-sm text-[#333]">How can I mitigate the first risk?</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-            <motion.div
-              initial={{ opacity: 0, x: 20 }}
-              whileInView={{ opacity: 1, x: 0 }}
-              viewport={{ once: true }}
-              className="order-1 md:order-2"
-            >
-              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/[0.04] text-[#1a1a1a] text-xs font-medium mb-6">
-                <MessageSquare size={12} />
-                AI Chat
-              </div>
-              <h2 className="text-3xl md:text-4xl font-semibold text-[#1a1a1a] tracking-tight mb-6 leading-tight">
-                Chat with your document
-              </h2>
-              <p className="text-[#666] leading-relaxed mb-6 text-base">
-                Ask questions about what you've written. Get summaries, find gaps, brainstorm ideas. The AI reads your entire document and gives contextual answers.
-              </p>
-              <p className="text-[#999] text-sm">
-                No copy-pasting into ChatGPT. Your doc is always the context.
-              </p>
-            </motion.div>
-          </div>
-        </div>
-      </section>
-
-      {/* Feature 3: One-click actions */}
-      <section className="py-24 px-6 relative">
-        <div className="max-w-5xl mx-auto">
-          <div className="grid md:grid-cols-2 gap-16 items-center">
-            <motion.div
-              initial={{ opacity: 0, x: -20 }}
-              whileInView={{ opacity: 1, x: 0 }}
-              viewport={{ once: true }}
-            >
-              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/[0.04] text-[#1a1a1a] text-xs font-medium mb-6">
-                <Zap size={12} />
-                Quick Actions
-              </div>
-              <h2 className="text-3xl md:text-4xl font-semibold text-[#1a1a1a] tracking-tight mb-6 leading-tight">
-                Writing tools that actually help
-              </h2>
-              <p className="text-[#666] leading-relaxed mb-6 text-base">
-                Not generic suggestions. Real tools: fact-check a claim, find better synonyms, generate counterarguments, or extract the key points from a paragraph.
-              </p>
-              <p className="text-[#999] text-sm mb-4">
-                Keyboard shortcuts for everything. Stay in flow.
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {["Fact check", "Synonyms", "Counter", "Simplify", "Expand"].map((action, i) => (
-                  <span key={i} className="px-3 py-1.5 rounded-full bg-[#F0F0EC] text-[13px] font-medium text-[#666]">{action}</span>
-                ))}
-              </div>
-            </motion.div>
-            <motion.div
-              initial={{ opacity: 0, x: 20 }}
-              whileInView={{ opacity: 1, x: 0 }}
-              viewport={{ once: true }}
-              className="relative"
-            >
-              <div className="absolute -inset-4 bg-gradient-to-b from-black/[0.03] to-transparent rounded-[28px] blur-2xl" />
-              <div className="relative bg-white rounded-2xl border border-black/[0.06] p-6 shadow-xl shadow-black/[0.05]">
-                {/* Cmd+K Command Palette Demo */}
-                <div className="p-5 rounded-xl bg-[#FAFAFA] border border-black/[0.04]">
-                  <div className="flex items-center gap-2 mb-5">
-                    <div className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white border border-black/[0.06] text-xs font-mono text-[#666] shadow-sm">
-                      <span>⌘K</span>
-                    </div>
-                    <span className="text-sm text-[#999]">Quick Actions</span>
-                  </div>
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-3 p-3 rounded-xl bg-[#1a1a1a] text-white">
-                      <Check size={14} />
-                      <span className="text-sm font-medium">Paraphrase</span>
-                    </div>
-                    <div className="flex items-center gap-3 p-3 rounded-xl hover:bg-white transition-colors cursor-pointer">
-                      <Eye size={14} className="text-[#999]" />
-                      <span className="text-sm text-[#666]">Find synonyms</span>
-                    </div>
-                    <div className="flex items-center gap-3 p-3 rounded-xl hover:bg-white transition-colors cursor-pointer">
-                      <Target size={14} className="text-[#999]" />
-                      <span className="text-sm text-[#666]">Expand this point</span>
-                    </div>
-                    <div className="flex items-center gap-3 p-3 rounded-xl hover:bg-white transition-colors cursor-pointer">
-                      <Lightbulb size={14} className="text-[#999]" />
-                      <span className="text-sm text-[#666]">Generate counter</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-          </div>
-        </div>
-      </section>
-
-      {/* Who it's for */}
-      <section className="py-24 px-6 relative">
-        <div className="max-w-4xl mx-auto text-center">
-          <h2
-            className="text-3xl md:text-4xl text-[#1a1a1a] tracking-tight mb-14"
-            style={{ fontFamily: "Georgia, 'Times New Roman', serif", fontStyle: "italic" }}
-          >
-            For anyone who writes.
-          </h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {[
-              { role: "Founders", doing: "pitch decks & memos" },
-              { role: "Writers", doing: "articles & essays" },
-              { role: "Students", doing: "papers & theses" },
-              { role: "Teams", doing: "docs & proposals" },
-            ].map((item, i) => (
-              <motion.div
-                key={i}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: i * 0.05 }}
-                className="p-6 rounded-2xl bg-white border border-black/[0.04] hover:border-black/[0.08] hover:shadow-lg transition-all"
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+              <button
+                onClick={() => handleCTA("hero")}
+                className="group flex items-center gap-2 px-7 py-3.5 rounded-xl bg-black text-white font-medium hover:bg-black/80 transition-all"
               >
-                <p className="font-semibold text-[#1a1a1a] mb-1 text-[15px]">{item.role}</p>
-                <p className="text-[13px] text-[#999]">{item.doing}</p>
-              </motion.div>
-            ))}
+                Start writing free
+                <ArrowRight size={16} className="group-hover:translate-x-0.5 transition-transform" />
+              </button>
+              <a href="#features" className="text-black/50 hover:text-black transition-colors px-4 py-3">
+                See how it works
+              </a>
+            </div>
+          </motion.div>
+        </div>
+
+        {/* Interactive Demo */}
+        <motion.div
+          initial={{ opacity: 0, y: 40 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.7, delay: 0.15 }}
+          className="max-w-6xl mx-auto"
+        >
+          <InteractiveDemo />
+        </motion.div>
+      </section>
+
+      {/* Feature Sections */}
+      <section id="features" className="py-24 lg:py-32 px-6 bg-white">
+        <div className="max-w-6xl mx-auto space-y-24 lg:space-y-40">
+          {/* Feature 1: AI Actions */}
+          <FeatureSection
+            title="Powerful AI actions at your fingertips"
+            description="Select any text and instantly access a suite of AI-powered tools designed to enhance your writing."
+            features={[
+              "Find synonyms and alternative phrasings",
+              "Expand ideas into detailed paragraphs",
+              "Extract and analyze claims in your text",
+              "Generate counter-arguments to strengthen your work",
+            ]}
+            visual={<AIActionsVisual />}
+          />
+
+          {/* Feature 2: Focus Mode */}
+          <FeatureSection
+            title="Think clearer with Focus Mode"
+            description="A dedicated space for deep thinking. Let AI help you explore ideas, challenge assumptions, and develop stronger arguments."
+            features={[
+              "AI-guided brainstorming sessions",
+              "Challenge your assumptions with probing questions",
+              "Explore multiple perspectives on any topic",
+              "Build structured arguments step by step",
+            ]}
+            visual={<FocusModeVisual />}
+            reversed
+          />
+
+          {/* Feature 3: Quick Check */}
+          <FeatureSection
+            title="Verify your claims instantly"
+            description="Quick Check analyzes your writing for claims that need verification, helping you maintain credibility and accuracy."
+            features={[
+              "Automatically identify factual claims",
+              "Flag statistics that need sources",
+              "Highlight potential logical inconsistencies",
+              "Suggest areas for additional research",
+            ]}
+            visual={<QuickCheckVisual />}
+          />
+
+          {/* Feature 4: Organization */}
+          <FeatureSection
+            title="All your documents, beautifully organized"
+            description="A clean, distraction-free workspace that keeps your writing organized and accessible. Export to PDF when you're ready to share."
+            features={[
+              "Create unlimited documents with Pro",
+              "Auto-save keeps your work safe",
+              "Export to PDF with one click",
+              "Clean, minimal interface for focused writing",
+            ]}
+            visual={<OrganizationVisual />}
+            reversed
+          />
+        </div>
+      </section>
+
+      {/* Pricing */}
+      <section id="pricing" className="py-24 lg:py-32 px-6">
+        <div className="max-w-4xl mx-auto">
+          <div className="text-center mb-16">
+            <h2 className="text-3xl md:text-4xl font-semibold text-black mb-4">Simple pricing</h2>
+            <p className="text-black/50 text-lg">Start free, upgrade when you need more.</p>
+          </div>
+
+          <div className="grid md:grid-cols-2 gap-8">
+            {/* Free */}
+            <div className="p-8 lg:p-10 rounded-2xl border border-black/10 bg-white">
+              <h3 className="text-xl font-semibold mb-2">Free</h3>
+              <p className="text-black/50 text-sm mb-6">For getting started</p>
+              <div className="text-5xl font-semibold mb-8">$0</div>
+              <ul className="space-y-4 mb-10">
+                {["3 documents", "Basic AI actions", "Export to PDF"].map((item, i) => (
+                  <li key={i} className="flex items-center gap-3 text-black/60">
+                    <Check size={18} className="text-black/40" />
+                    {item}
+                  </li>
+                ))}
+              </ul>
+              <button
+                onClick={() => handleCTA("pricing-free")}
+                className="w-full py-3.5 rounded-xl border border-black/10 text-black/70 font-medium hover:bg-black/[0.02] transition-colors"
+              >
+                Get started
+              </button>
+            </div>
+
+            {/* Pro */}
+            <div className="p-8 lg:p-10 rounded-2xl bg-black text-white">
+              <h3 className="text-xl font-semibold mb-2">Pro</h3>
+              <p className="text-white/50 text-sm mb-6">For serious writers</p>
+              <div className="text-5xl font-semibold mb-2">$9.99</div>
+              <p className="text-white/40 text-sm mb-8">/month</p>
+              <ul className="space-y-4 mb-10">
+                {["Unlimited documents", "150 premium prompts/mo", "Claude & GPT-4", "Priority support"].map((item, i) => (
+                  <li key={i} className="flex items-center gap-3 text-white/70">
+                    <Check size={18} className="text-white/50" />
+                    {item}
+                  </li>
+                ))}
+              </ul>
+              <a
+                href="/pricing"
+                className="block w-full py-3.5 rounded-xl bg-white text-black font-medium text-center hover:bg-white/90 transition-colors"
+              >
+                Upgrade
+              </a>
+            </div>
           </div>
         </div>
       </section>
 
       {/* Final CTA */}
-      <section className="py-24 px-6 relative">
-        <div className="max-w-3xl mx-auto text-center relative">
-          {/* CTA glow */}
-          <div className="absolute inset-0 bg-gradient-to-r from-black/[0.03] via-black/[0.01] to-black/[0.03] rounded-full blur-[100px] opacity-50" />
-          
-          <h2 
-            className="text-4xl md:text-5xl text-[#1a1a1a] tracking-tight mb-8 relative"
-            style={{ fontFamily: "Georgia, 'Times New Roman', serif", fontStyle: "italic" }}
-          >
-            Try Eliee now.
+      <section className="py-24 lg:py-32 px-6 bg-white">
+        <div className="max-w-2xl mx-auto text-center">
+          <h2 className="text-3xl md:text-4xl font-semibold text-black mb-6">
+            Ready to write <span className="text-emerald-600">smarter</span>?
           </h2>
-          <a 
-            href="/get-started"
-            className="relative inline-flex items-center gap-2 px-8 py-4 rounded-full bg-[#1a1a1a] text-white font-medium hover:bg-[#333] transition-all shadow-2xl shadow-black/20"
+          <p className="text-black/50 text-lg mb-8">
+            Join thousands of writers using AI to think clearer and write faster.
+          </p>
+          <button
+            onClick={() => handleCTA("footer")}
+            className="group inline-flex items-center gap-2 px-8 py-4 rounded-xl bg-black text-white font-medium text-lg hover:bg-black/80 transition-all"
           >
-            Start a new document
-            <ArrowRight size={18} />
-          </a>
+            Start writing free
+            <ArrowRight size={18} className="group-hover:translate-x-0.5 transition-transform" />
+          </button>
         </div>
       </section>
 
       {/* Footer */}
-      <footer className="py-16 px-6 border-t border-black/[0.04] relative">
-        <div className="max-w-5xl mx-auto">
-          <div className="flex flex-col md:flex-row items-start justify-between gap-10">
-            <div className="flex items-center gap-2.5">
-              <img src="/eliee_logo.jpg" alt="Logo" className="w-7 h-7 rounded-lg" />
-              <span className="font-semibold text-[#1a1a1a] text-[15px]">Eliee</span>
-            </div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-8 md:gap-12 text-sm">
-              <div>
-                <p className="font-medium text-[#1a1a1a] mb-4">Product</p>
-                <div className="space-y-3 text-[#666]">
-                  <a href="#features" className="block hover:text-[#1a1a1a] transition-colors">Features</a>
-                  <a href="/pricing" className="block hover:text-[#1a1a1a] transition-colors">Pricing</a>
-                </div>
-              </div>
-              <div>
-                <p className="font-medium text-[#1a1a1a] mb-4">Resources</p>
-                <div className="space-y-3 text-[#666]">
-                  <a href="#how" className="block hover:text-[#1a1a1a] transition-colors">How it Works</a>
-                  <a href="/auth" className="block hover:text-[#1a1a1a] transition-colors">Sign in</a>
-                </div>
-              </div>
-              <div>
-                <p className="font-medium text-[#1a1a1a] mb-4">Legal</p>
-                <div className="space-y-3 text-[#666]">
-                  <a href="/terms" className="block hover:text-[#1a1a1a] transition-colors">Terms</a>
-                  <a href="/privacy" className="block hover:text-[#1a1a1a] transition-colors">Privacy</a>
-                </div>
-              </div>
-              <div>
-                <p className="font-medium text-[#1a1a1a] mb-4">Contact</p>
-                <div className="space-y-3 text-[#666]">
-                  <a href="mailto:varun@teyra.app" className="block hover:text-[#1a1a1a] transition-colors">varun@teyra.app</a>
-                </div>
-              </div>
-            </div>
+      <footer className="py-12 px-6 border-t border-black/5">
+        <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
+          <div className="flex items-center gap-2">
+            <img src="/eliee_logo.jpg" alt="Eliee" className="w-6 h-6 rounded-md" />
+            <span className="text-sm font-medium text-black/60">Eliee</span>
           </div>
-          <div className="mt-14 pt-6 border-t border-black/[0.04] flex flex-col md:flex-row items-center justify-between gap-4 text-[13px] text-[#999]">
-            <p>© 2026 Eliee. All rights reserved.</p>
-            <p>Built for thinkers.</p>
+          <div className="flex items-center gap-6 text-sm text-black/40">
+            <a href="/pricing" className="hover:text-black transition-colors">Pricing</a>
+            <a href="/terms" className="hover:text-black transition-colors">Terms</a>
+            <a href="/privacy" className="hover:text-black transition-colors">Privacy</a>
+            <a href="/auth" className="hover:text-black transition-colors">Sign in</a>
           </div>
         </div>
       </footer>
     </div>
   );
-}
-
-// --- Page Export ---
-export default function Home() {
-  return <LandingPage />;
 }
