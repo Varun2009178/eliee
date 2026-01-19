@@ -1,7 +1,7 @@
 import { MetadataRoute } from 'next';
 
 export default function sitemap(): MetadataRoute.Sitemap {
-  const baseUrl = 'https://eliee.sh';
+  const baseUrl = 'https://www.eliee.sh';
   const currentDate = new Date().toISOString();
 
   // All public pages that should be indexed
