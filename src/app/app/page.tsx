@@ -1028,13 +1028,7 @@ export default function AppPage() {
   }, [showFocusMode]);
 
   // Toggle Focus Mode with intro popup check
-  const handleToggleFocusMode = () => {
-    if (showVisualView) {
-      setError("Please 'Sync to Editor' first to use Assistant.");
-      setTimeout(() => setError(null), 3000);
-      return;
-    }
-
+  const handleToggleFocusMode = useCallback(() => {
     if (showFocusMode) {
       setShowFocusMode(false);
     } else {
@@ -1050,7 +1044,7 @@ export default function AppPage() {
         setShowFocusMode(true);
       }
     }
-  };
+  }, [showFocusMode, showQuickCheckPanel, session?.user?.id, dontShowFocusIntro]);
 
   // Toggle Visualize with intro popup check
   const handleToggleVisualize = async () => {
@@ -1303,24 +1297,17 @@ export default function AppPage() {
   // Keyboard shortcuts: Cmd/Ctrl + K to toggle Focus Mode, Cmd/Ctrl + Shift + C for Quick Check, Cmd/Ctrl + Z for undo/redo
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Cmd/Ctrl + K: Toggle Focus Mode (works for AI Native documents)
+      // Cmd/Ctrl + K: Toggle Focus Mode
       if ((e.metaKey || e.ctrlKey) && e.key === "k") {
         e.preventDefault();
-        if (!showVisualView) {
-          // Only allow Focus Mode for AI Native documents
-          if (documentType === "ai_native") {
-            handleToggleFocusMode();
-          }
-        }
+        handleToggleFocusMode();
         return;
       }
 
       // Cmd/Ctrl + Shift + C: Toggle Quick Check
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === "c") {
         e.preventDefault();
-        if (!showVisualView && documentType === "ai_native") {
-          handleToggleQuickCheck();
-        }
+        handleToggleQuickCheck();
         return;
       }
 
@@ -1354,7 +1341,7 @@ export default function AppPage() {
     };
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [showVisualView, history, historyIndex, documentType, handleToggleQuickCheck]);
+  }, [history, historyIndex, handleToggleQuickCheck, handleToggleFocusMode]);
 
   // Check if action is allowed (free tier limits) - memoized for performance
   const isActionAllowed = useCallback((action: string): boolean => {
@@ -1747,185 +1734,143 @@ export default function AppPage() {
           </motion.div>
         )}
       </AnimatePresence>
-      {/* Sidebar - INCREASED width for better usability */}
+      {/* Sidebar - Clean, minimal design */}
       <motion.aside
         initial={false}
-        animate={{ width: isSidebarOpen ? 320 : 0 }}
-        transition={{ 
+        animate={{ width: isSidebarOpen ? 280 : 0 }}
+        transition={{
           duration: sidebarMounted ? 0.3 : 0, // No animation on first render
-          ease: [0.16, 1, 0.3, 1] 
+          ease: [0.16, 1, 0.3, 1]
         }}
-        className="relative border-r border-black/[0.06] bg-[#fcfcfc] flex flex-col overflow-hidden flex-shrink-0"
-        style={{ 
-          width: sidebarMounted ? undefined : (isSidebarOpen ? 320 : 0), // Fixed width on first render
-          minWidth: isSidebarOpen ? 320 : 0, 
-          maxWidth: isSidebarOpen ? 320 : 0 
+        className="relative border-r border-black/[0.06] bg-white flex flex-col overflow-hidden flex-shrink-0"
+        style={{
+          width: sidebarMounted ? undefined : (isSidebarOpen ? 280 : 0), // Fixed width on first render
+          minWidth: isSidebarOpen ? 280 : 0,
+          maxWidth: isSidebarOpen ? 280 : 0
         }}
       >
-        <div className="p-6 flex items-center justify-between border-b border-black/[0.04]">
+        {/* Logo Header */}
+        <div className="p-5 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <img src="/eliee_logo.jpg" alt="Logo" className="w-8 h-8 rounded-lg" />
-            <span className="font-semibold tracking-tight text-black text-base">Eliee</span>
-            {isPro && (
-              <span className="px-2 py-1 text-[10px] font-bold bg-gradient-to-r from-violet-500 to-purple-500 text-white rounded-md uppercase tracking-wide">
-                Pro
-              </span>
-            )}
-          </div>
-          <button
-            onClick={handleNewDocument}
-            className="p-2 hover:bg-black/[0.05] rounded-lg transition-colors"
-            title="New document"
-          >
-            <Plus size={20} className="text-black/40" />
-          </button>
-        </div>
-        
-        <div className="flex-1 overflow-y-auto">
-          {/* Documents List - INCREASED sizes */}
-          <div className="p-5 space-y-2.5">
-            <div className="flex items-center justify-between px-3 mb-4">
-              <p className="text-[12px] font-semibold uppercase tracking-wider text-black/30">Documents</p>
-              {!isPro && (
-                <span className="text-[12px] text-black/35">{documents.length}/{FREE_DOCUMENT_LIMIT}</span>
+            <img src="/eliee_logo.jpg" alt="Logo" className="w-9 h-9 rounded-xl shadow-sm" />
+            <div className="flex items-center gap-2">
+              <span className="font-semibold tracking-tight text-black text-lg leading-none">Eliee</span>
+              {isPro && (
+                <span className="inline-flex items-center justify-center px-1.5 py-0.5 text-[9px] leading-none font-bold bg-blue-600 text-white rounded uppercase">
+                  Pro
+                </span>
               )}
             </div>
+          </div>
+        </div>
+
+        {/* New Document Button - Prominent */}
+        <div className="px-5 pb-4">
+          <button
+            onClick={handleNewDocument}
+            className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl bg-black text-white font-medium hover:bg-black/90 transition-all shadow-sm"
+          >
+            <Plus size={18} />
+            <span>New Document</span>
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-5">
+          {/* Documents List */}
+          <div className="space-y-1.5">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-black/30 mb-3">
+              Your Documents {!isPro && <span className="text-black/25">({documents.length}/{FREE_DOCUMENT_LIMIT})</span>}
+            </p>
             {documents.map((doc) => (
               <div
                 key={doc.id}
                 onClick={() => handleSelectDocument(doc)}
                 className={cn(
-                  "group flex items-center gap-3 px-4 py-3.5 rounded-xl cursor-pointer transition-all",
+                  "group flex items-center gap-3 px-4 py-3 rounded-xl cursor-pointer transition-all",
                   currentDocId === doc.id
-                    ? "bg-white border border-black/[0.08] shadow-sm"
-                    : "hover:bg-white/60"
+                    ? "bg-[#f8f7f4] border border-black/[0.06]"
+                    : "hover:bg-black/[0.02]"
                 )}
               >
-                <FileText size={18} className={cn("flex-shrink-0", currentDocId === doc.id ? "text-black/60" : "text-black/35")} />
-                <span className={cn("text-[14px] font-medium truncate flex-1", currentDocId === doc.id ? "text-black/80" : "text-black/55")}>
+                <FileText size={16} className={cn("flex-shrink-0", currentDocId === doc.id ? "text-black/60" : "text-black/30")} />
+                <span className={cn("text-sm font-medium truncate flex-1", currentDocId === doc.id ? "text-black/80" : "text-black/50")}>
                   {doc.title || "Untitled"}
                 </span>
                 <button
                   onClick={(e) => { e.stopPropagation(); handleDeleteDocument(doc.id); }}
-                  className="opacity-0 group-hover:opacity-100 p-1.5 hover:bg-black/[0.05] rounded-lg transition-all"
+                  className="opacity-0 group-hover:opacity-100 p-1 hover:bg-black/[0.05] rounded-lg transition-all"
                 >
-                  <Trash2 size={16} className="text-black/30 hover:text-rose-500" />
+                  <Trash2 size={14} className="text-black/25 hover:text-rose-500" />
                 </button>
               </div>
             ))}
             {documents.length === 0 && (
-              <p className="text-sm text-black/35 text-center py-8">No documents yet</p>
+              <p className="text-sm text-black/30 text-center py-6">No documents yet</p>
             )}
-          </div>
-
-          {/* Current Document Stats - INCREASED sizes */}
-          <div className="p-5 space-y-6 border-t border-black/[0.04]">
-            <div className="p-5 rounded-xl bg-white border border-black/[0.04] space-y-5">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3 text-black/50">
-                  <FileText size={18} />
-                  <span className="text-[14px] font-medium truncate">{docTitle}</span>
-                </div>
-                {isSaving ? (
-                  <div className="w-4 h-4 border-2 border-black/20 border-t-black/50 rounded-full animate-spin" />
-                ) : lastSaved ? (
-                  <Check size={16} className="text-emerald-500" />
-                ) : null}
-              </div>
-              <div className="flex items-center justify-between text-[13px] text-black/40">
-                <span>{wordCount} words</span>
-                {lastSaved && <span>Saved</span>}
-              </div>
-              <div className="h-2 bg-black/[0.04] rounded-full overflow-hidden">
-                <div className="h-full bg-black/25 transition-all duration-300" style={{ width: `${Math.min(100, (wordCount / 300) * 100)}%` }} />
-              </div>
-            </div>
-
-            {/* Show features based on document type - BIGGER buttons */}
-            {documentType === "visualization" ? (
-              <button
-                onClick={handleToggleVisualize}
-                disabled={isAnalyzing || (!hasContent && !showVisualView)}
-                className={cn(
-                  "w-full flex items-center justify-center gap-3 px-4 py-4 rounded-xl text-base font-semibold transition-all",
-                  (hasContent || showVisualView) && !isAnalyzing
-                    ? showVisualView
-                      ? "bg-blue-500 text-white hover:bg-blue-600"
-                      : "bg-black text-white hover:bg-black/90"
-                    : "bg-black/[0.03] text-black/25 cursor-not-allowed"
-                )}
-              >
-                {isAnalyzing ? (
-                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                ) : (
-                  <Eye size={20} />
-                )}
-                <span>{showVisualView ? "Refresh" : "Visualize"}</span>
-              </button>
-            ) : documentType === "ai_native" ? (
-              <div className="space-y-3">
-                <button
-                  onClick={handleToggleFocusMode}
-                  className={cn(
-                    "w-full py-3 rounded-lg text-[13px] font-medium transition-colors text-center",
-                    showFocusMode
-                      ? "bg-black text-white"
-                      : "bg-black/[0.04] text-black/70 hover:bg-black/[0.06]"
-                  )}
-                >
-                  Focus Mode
-                </button>
-                {/* Quick Check Button - Sidebar */}
-                <button
-                  onClick={() => setShowQuickCheckBetaModal(true)}
-                  disabled={quickCheckLoading}
-                  className={cn(
-                    "group relative w-full flex items-center justify-center gap-2 py-3 rounded-lg text-[13px] font-medium transition-all",
-                    showQuickCheckPanel
-                      ? "bg-violet-600 text-white"
-                      : "bg-black/[0.04] text-black/70 hover:bg-black/[0.06]"
-                  )}
-                >
-                  {quickCheckLoading ? (
-                    <div className="w-4 h-4 border-2 border-current/30 border-t-current rounded-full animate-spin" />
-                  ) : (
-                    <CheckCheck size={16} className={showQuickCheckPanel ? "text-white" : "text-violet-500"} />
-                  )}
-                  <span>Quick Check</span>
-                  <span className={cn(
-                    "px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wide",
-                    showQuickCheckPanel
-                      ? "bg-white/20 text-white"
-                      : "bg-amber-100 text-amber-700"
-                  )}>
-                    BETA
-                  </span>
-                </button>
-              </div>
-            ) : null}
-
-            {error && <div className="p-4 rounded-xl bg-rose-50 border border-rose-100 text-rose-600 text-sm">{error}</div>}
           </div>
         </div>
 
-        <div className="p-5 border-t border-black/[0.04]">
+        {/* Bottom Section - Current Doc Stats & Actions */}
+        <div className="p-5 border-t border-black/[0.04] space-y-4 bg-[#fafafa]">
+          {/* Word count - minimal */}
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-black/40">{wordCount} words</span>
+            <div className="flex items-center gap-2">
+              {isSaving ? (
+                <div className="w-3 h-3 border-2 border-black/15 border-t-black/40 rounded-full animate-spin" />
+              ) : lastSaved ? (
+                <div className="flex items-center gap-1.5 text-emerald-600">
+                  <Check size={14} />
+                  <span className="text-xs">Saved</span>
+                </div>
+              ) : null}
+            </div>
+          </div>
+
+          {/* AI Features - Clean buttons */}
+          <div className="flex gap-2">
+            <button
+              onClick={handleToggleFocusMode}
+              className={cn(
+                "flex-1 py-2.5 rounded-lg text-sm font-medium transition-all",
+                showFocusMode
+                  ? "bg-black text-white"
+                  : "bg-black/[0.05] text-black/60 hover:bg-black/[0.08]"
+              )}
+            >
+              Focus
+            </button>
+            <button
+              onClick={() => setShowQuickCheckBetaModal(true)}
+              disabled={quickCheckLoading}
+              className={cn(
+                "flex-1 py-2.5 rounded-lg text-sm font-medium transition-all",
+                showQuickCheckPanel
+                  ? "bg-black text-white"
+                  : "bg-black/[0.05] text-black/60 hover:bg-black/[0.08]"
+              )}
+            >
+              {quickCheckLoading ? "..." : "Check"}
+            </button>
+          </div>
+
+          {error && <div className="p-3 rounded-lg bg-rose-50 border border-rose-100 text-rose-600 text-xs">{error}</div>}
+
+          {/* Upgrade / Pro Status */}
           {isPro ? (
-            /* Pro user status - Cursor/Linear style: minimal */
-            <div className="flex items-center justify-between p-3 rounded-lg bg-black/[0.02] border border-black/[0.04]">
-              <div className="flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                <span className="text-[13px] font-medium text-black/70">Pro</span>
+            <div className="py-2.5 px-3 rounded-lg bg-blue-600 text-white text-center shadow-sm shadow-blue-600/10">
+              <div className="text-xs font-semibold">Eliee Pro</div>
+              <div className="text-[11px] text-white/80">
+                {premiumPromptsLimit - premiumPromptsUsed} prompts remaining
               </div>
-              <span className="text-[12px] text-black/40">{premiumPromptsLimit - premiumPromptsUsed} prompts left</span>
             </div>
           ) : (
-            /* Upgrade to Pro button - Cursor/Linear style: clean, minimal */
             <button
               onClick={() => {
                 posthog.capture("upgrade_modal_opened", { location: "sidebar" });
                 setShowProModal(true);
               }}
-              className="w-full py-3 rounded-lg bg-black text-white text-[13px] font-medium hover:bg-black/90 transition-colors text-center"
+              className="w-full py-2.5 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition-colors text-center shadow-sm shadow-blue-600/10"
             >
               Upgrade to Pro
             </button>
@@ -1963,122 +1908,26 @@ export default function AppPage() {
           )}
         </AnimatePresence>
 
-        <header className="h-16 flex items-center justify-between px-4 md:px-8 lg:px-12 border-b border-black/[0.06] bg-white/80 backdrop-blur-md sticky top-0 z-50 flex-shrink-0 min-w-0">
-          <div className="flex items-center gap-3 md:gap-5 lg:gap-8 min-w-0 flex-1">
-            <button 
-              onClick={() => setIsSidebarOpen(!isSidebarOpen)} 
-              className="p-2.5 hover:bg-black/[0.04] rounded-xl transition-all flex-shrink-0 active:scale-90"
+        <header className="h-14 flex items-center justify-between px-4 md:px-6 border-b border-black/[0.04] bg-white sticky top-0 z-50 flex-shrink-0 min-w-0">
+          <div className="flex items-center gap-3 min-w-0 flex-1">
+            <button
+              onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+              className="p-2 hover:bg-black/[0.04] rounded-lg transition-all flex-shrink-0"
               title={isSidebarOpen ? "Close sidebar" : "Open sidebar"}
             >
-              <Menu size={20} className="text-black/60" />
+              <Menu size={18} className="text-black/50" />
             </button>
 
-            <div className="flex items-center min-w-0 flex-1 max-w-[180px] md:max-w-sm lg:max-w-md xl:max-w-lg">
-              <input 
-                type="text" 
-                value={docTitle} 
-                onChange={(e) => setDocTitle(e.target.value)} 
-                className="text-sm md:text-base font-bold bg-transparent border-none focus:outline-none text-black/80 placeholder:text-black/20 min-w-0 w-full truncate hover:bg-black/[0.02] px-2 py-1 rounded-lg transition-all" 
-                placeholder="Untitled Document" 
-              />
-            </div>
+            <input
+              type="text"
+              value={docTitle}
+              onChange={(e) => setDocTitle(e.target.value)}
+              className="text-lg font-semibold bg-transparent border-none focus:outline-none text-black/80 placeholder:text-black/20 min-w-0 flex-1 max-w-md hover:bg-black/[0.02] px-2 py-1 rounded-lg transition-all"
+              placeholder="Untitled"
+            />
           </div>
-          <div className="flex items-center gap-3 md:gap-5 lg:gap-8 flex-shrink-0 pl-4 md:pl-0">
-            {/* Autosave indicator */}
-            <div className="hidden sm:flex items-center gap-2 text-xs md:text-sm text-black/35 font-medium">
-              {isSaving ? (
-                <>
-                  <div className="relative">
-                    <div className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-ping absolute inset-0 opacity-40" />
-                    <div className="w-2.5 h-2.5 rounded-full bg-amber-400 relative" />
-                  </div>
-                  <span className="whitespace-nowrap hidden md:inline">Syncing...</span>
-                </>
-              ) : lastSaved ? (
-                <>
-                  <div className="w-2.5 h-2.5 rounded-full bg-emerald-500/80" />
-                  <span className="whitespace-nowrap hidden md:inline">Saved</span>
-                </>
-              ) : null}
-            </div>
-            {/* Upgrade prompt when usage is low */}
-            {!isPro && !showVisualView && Object.entries(FREE_LIMITS).some(([action]) => {
-              const remaining = getRemainingUses(action);
-              return remaining !== Infinity && remaining <= 1 && (focusUsage[action] || 0) > 0;
-            }) && (
-              <button
-                onClick={() => setShowProModal(true)}
-                className="hidden md:flex items-center px-4 py-2 rounded-lg bg-black text-xs font-bold text-white hover:bg-black/90 transition-all shadow-lg shadow-black/10 active:scale-95"
-              >
-                Upgrade
-              </button>
-            )}
-            {showVisualView && (
-              <button onClick={() => setShowVisualView(false)} className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold text-black/50 hover:text-black hover:bg-black/[0.03] transition-all active:scale-95 border border-transparent hover:border-black/[0.05]">
-                <ArrowLeft size={16} strokeWidth={2.5} /> <span className="hidden md:inline">Back to Doc</span>
-              </button>
-            )}
-            {!showVisualView && documentType === "visualization" && (
-              <div className="flex items-center gap-2 md:gap-4">
-                <button
-                  onClick={() => setCanvasMode(!canvasMode)}
-                  className={cn(
-                    "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all border shadow-sm active:scale-95",
-                    canvasMode
-                      ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                      : "bg-white text-black/40 hover:text-black/60 border-black/[0.04]"
-                  )}
-                  title={canvasMode ? "Switch to structured mode" : "Switch to canvas mode"}
-                >
-                  <Maximize2 size={12} strokeWidth={2.5} />
-                  <span className="hidden sm:inline">{canvasMode ? "Canvas" : "Structured"}</span>
-                </button>
-                <button 
-                  onClick={handleToggleVisualize}
-                  disabled={isAnalyzing}
-                  className={cn(
-                    "flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-sm active:scale-95",
-                    isAnalyzing
-                      ? "bg-black/[0.02] text-black/30 cursor-not-allowed border border-black/[0.04]"
-                      : "bg-black text-white hover:bg-black/90 shadow-black/10"
-                  )}
-                >
-                  {isAnalyzing ? (
-                    <>
-                      <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                      <span className="hidden sm:inline">Analysing...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Eye size={16} strokeWidth={2.5} />
-                      <span>Visualize</span>
-                    </>
-                  )}
-                </button>
-              </div>
-            )}
-            {/* Document type switcher */}
-            {!showVisualView && documentType && (
-              <button
-                onClick={handleSwitchDocumentType}
-                className="flex items-center gap-1.5 px-2 py-0.5 bg-black/[0.02] hover:bg-black/[0.04] rounded transition-colors cursor-pointer group"
-                title={`Switch to ${documentType === "visualization" ? "AI Native" : "Visualization"}`}
-              >
-                <span className="text-[10px] text-black/30 group-hover:text-black/50 transition-colors">
-                  {documentType === "visualization" ? "Visualization" : "AI Native"}
-                </span>
-                <svg className="w-3 h-3 text-black/20 group-hover:text-black/40 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
-                </svg>
-              </button>
-            )}
-            {/* Pro Badge */}
-            {isPro && (
-              <div className="flex items-center gap-1 px-2 py-0.5 bg-gradient-to-r from-amber-500/10 to-orange-500/10 rounded-full border border-amber-500/20">
-                <Crown size={10} className="text-amber-600" />
-                <span className="text-[10px] font-semibold text-amber-700">Pro</span>
-              </div>
-            )}
+
+          <div className="flex items-center gap-4 flex-shrink-0">
             {/* Header Menu */}
             <div className="relative">
               <button 
@@ -2169,104 +2018,83 @@ export default function AppPage() {
 
         <AnimatePresence mode="wait">
           {!showVisualView ? (
-            <motion.div 
-              key="doc" 
+            <motion.div
+              key="doc"
               ref={scrollContainerRef}
               data-editor-content="true"
-              initial={{ opacity: 0 }} 
-              animate={{ opacity: 1 }} 
-              exit={{ opacity: 0 }} 
-              className="flex-1 overflow-auto" 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="flex-1 overflow-auto bg-[#fafaf9]"
               onClick={() => { setShowCommandMenu(false); setShowExportMenu(false); setShowHeaderMenu(false); }}
-              onContextMenu={(e) => !showFocusMode && handleDocContextMenu(e)}
             >
-              <div className="max-w-3xl mx-auto py-16 px-8">
-                <div className="space-y-4">
+              {/* Perplexity-style centered editor */}
+              <div className="min-h-full flex flex-col">
+                {/* Empty state hint - fades out when typing */}
+                {blocks.length === 1 && !blocks[0].content.trim() && (
+                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-0">
+                    <div className="text-center">
+                      <p className="text-2xl text-black/20 font-medium mb-3">Start writing...</p>
+                      <p className="text-sm text-black/15">Press <span className="font-mono bg-black/5 px-1.5 py-0.5 rounded">⌘K</span> for AI assistant</p>
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex-1 max-w-4xl w-full mx-auto px-6 md:px-12 py-12 relative z-10">
                   {blocks.map((block, index) => (
-                    <div key={block.id} data-block-id={block.id} onDragOver={(e) => handleDragOver(e, block.id)} className={cn("group relative rounded-xl transition-all", draggedId === block.id && "opacity-50", block.type !== "text" && "border-l-4", block.type !== "text" && blockMeta[block.type]?.borderColor)}>
-                      <div className="flex items-start gap-3 py-2">
-                        <div className="w-6 flex-shrink-0 pt-3 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center gap-1">
-                          <button onClick={() => removeBlock(block.id)} className="p-1 hover:bg-black/[0.04] rounded-lg text-black/20 hover:text-black/50"><X size={14} /></button>
+                    <div key={block.id} data-block-id={block.id} onDragOver={(e) => handleDragOver(e, block.id)} className={cn("group relative", draggedId === block.id && "opacity-50")}>
+                      <div className="relative">
+                        {/* Highlight overlay for Quick Check suggestions */}
+                        {hoveredSuggestion && block.content && block.content.includes(hoveredSuggestion.original) && (
                           <div
-                            draggable
-                            onDragStart={() => handleDragStart(block.id)}
-                            onDragEnd={handleDragEnd}
-                            className="p-1 text-black/15 cursor-grab active:cursor-grabbing hover:text-black/35"
+                            className="absolute inset-0 whitespace-pre-wrap break-words pointer-events-none text-2xl leading-relaxed"
+                            style={{ color: "transparent" }}
                           >
-                            <GripVertical size={14} />
-                          </div>
-                        </div>
-                        <div className={cn("flex-1 min-w-0 py-3 px-5 rounded-xl transition-colors", block.type !== "text" && blockMeta[block.type]?.bgColor)} onContextMenu={(e) => !showFocusMode && handleContextMenu(e, index)}>
-                          <div className="flex items-start justify-between gap-3 mb-2">
-                            <div className="flex-1">
-                              {block.type !== "text" && blockMeta[block.type] && (
-                                <div className={cn("inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wider mb-2", blockMeta[block.type].color)}>
-                                  {blockMeta[block.type].icon}
-                                  {blockMeta[block.type].label}
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                          <div className="relative">
-                            {/* Highlight overlay for Quick Check suggestions */}
-                            {hoveredSuggestion && block.content && block.content.includes(hoveredSuggestion.original) && (
-                              <div
-                                className={cn(
-                                  "absolute inset-0 whitespace-pre-wrap break-words pointer-events-none leading-relaxed",
-                                  block.type === "text" ? "text-lg" : "text-base font-medium"
-                                )}
-                                style={{ color: "transparent" }}
-                              >
-                                {(() => {
-                                  const content = block.content || "";
-                                  const original = hoveredSuggestion.original;
-                                  const index = content.indexOf(original);
-                                  if (index === -1) return content;
+                            {(() => {
+                              const content = block.content || "";
+                              const original = hoveredSuggestion.original;
+                              const idx = content.indexOf(original);
+                              if (idx === -1) return content;
 
-                                  const before = content.slice(0, index);
-                                  const match = content.slice(index, index + original.length);
-                                  const after = content.slice(index + original.length);
+                              const before = content.slice(0, idx);
+                              const match = content.slice(idx, idx + original.length);
+                              const after = content.slice(idx + original.length);
 
-                                  const highlightColor = hoveredSuggestion.severity === "error"
-                                    ? "bg-rose-200/80"
-                                    : hoveredSuggestion.severity === "warning"
-                                    ? "bg-amber-200/80"
-                                    : "bg-blue-200/80";
+                              const highlightColor = hoveredSuggestion.severity === "error"
+                                ? "bg-rose-200/80"
+                                : hoveredSuggestion.severity === "warning"
+                                ? "bg-amber-200/80"
+                                : "bg-blue-200/80";
 
-                                  return (
-                                    <>
-                                      <span>{before}</span>
-                                      <span className={cn(highlightColor, "rounded px-0.5")}>{match}</span>
-                                      <span>{after}</span>
-                                    </>
-                                  );
-                                })()}
-                              </div>
-                            )}
-                            <textarea
-                              value={block.content || ""}
-                              onChange={(e) => {
-                                updateBlock(block.id, e.target.value);
-                              }}
-                              onInput={(e) => autoResize(e.currentTarget)}
-                              onFocus={(e) => autoResize(e.currentTarget)}
-                              onBlur={(e) => {
-                                // Ensure content is preserved on blur - sync state with DOM
-                                const currentValue = e.target.value;
-                                if (currentValue !== (block.content || "")) {
-                                  updateBlock(block.id, currentValue);
-                                }
-                              }}
-                              placeholder={block.type === "text" ? "Start writing..." : `Enter ${block.type}...`}
-                              className={cn(
-                                "w-full bg-transparent border-none focus:ring-0 p-0 resize-none leading-relaxed placeholder:text-black/20 focus:outline-none relative z-10",
-                                block.type === "text" ? "text-lg text-black/80" : "text-base font-medium text-black/75"
-                              )}
-                              style={{ overflow: "hidden" }}
-                              rows={1}
-                            />
+                              return (
+                                <>
+                                  <span>{before}</span>
+                                  <span className={cn(highlightColor, "rounded px-0.5")}>{match}</span>
+                                  <span>{after}</span>
+                                </>
+                              );
+                            })()}
                           </div>
-                        </div>
+                        )}
+                        <textarea
+                          value={block.content || ""}
+                          onChange={(e) => {
+                            updateBlock(block.id, e.target.value);
+                          }}
+                          onInput={(e) => autoResize(e.currentTarget)}
+                          onFocus={(e) => autoResize(e.currentTarget)}
+                          onBlur={(e) => {
+                            const currentValue = e.target.value;
+                            if (currentValue !== (block.content || "")) {
+                              updateBlock(block.id, currentValue);
+                            }
+                          }}
+                          placeholder="Start writing..."
+                          className="w-full bg-transparent border-none focus:ring-0 p-0 resize-none text-2xl leading-relaxed text-black/80 placeholder:text-black/20 focus:outline-none"
+                          style={{ overflow: "hidden", minHeight: "60vh" }}
+                          rows={1}
+                          autoFocus
+                        />
                       </div>
                     </div>
                   ))}
@@ -2341,7 +2169,7 @@ export default function AppPage() {
                   )}
                 </AnimatePresence>
 
-                <div className="h-80" />
+                <div className="h-40" />
               </div>
             </motion.div>
           ) : (
@@ -2373,7 +2201,7 @@ export default function AppPage() {
                   {!isPro && (
                     <button
                       onClick={() => setShowProModal(true)}
-                      className="hidden sm:flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500/10 to-orange-500/10 border border-amber-500/20 text-[11px] font-bold text-amber-700 hover:from-amber-500/20 hover:to-orange-500/20 transition-all active:scale-95 shadow-sm"
+                      className="hidden sm:flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 text-white border border-blue-700/20 text-[11px] font-bold hover:bg-blue-700 transition-all active:scale-95 shadow-sm shadow-blue-600/15"
                     >
                       <Crown size={14} />
                       <span className="hidden md:inline">Upgrade to Pro</span>
@@ -2575,43 +2403,16 @@ export default function AppPage() {
               className="h-full border-l border-black/[0.08] bg-white flex flex-col z-50 flex-shrink-0"
               data-focus-sidebar="true"
             >
-            {/* Header - Compact */}
+            {/* Header - Clean */}
             <div className="h-12 border-b border-black/[0.06] flex items-center justify-between px-5 flex-shrink-0">
               <div className="flex items-center gap-3">
                 <span className="text-base font-semibold text-black/70">Assistant</span>
                 <span className="text-xs text-black/30 font-mono bg-black/[0.03] px-2 py-0.5 rounded">⌘K</span>
               </div>
               <div className="flex items-center gap-2">
-                {/* Usage Limits - Moved to header */}
-                {!isPro ? (
-                  <div className="flex items-center gap-2 text-[10px] text-black/40 px-2 py-1 rounded-md bg-black/[0.02]">
-                    <span>Chat: {focusUsage.chat || 0}/{FREE_LIMITS.chat}</span>
-                    {Object.entries(FREE_LIMITS).some(([action]) => {
-                      const remaining = getRemainingUses(action);
-                      return remaining !== Infinity && remaining <= 1 && (focusUsage[action] || 0) > 0;
-                    }) && (
-                      <button
-                        onClick={() => setShowProModal(true)}
-                        className="text-[10px] font-medium text-black/50 hover:text-black/70 transition-colors underline"
-                      >
-                        Upgrade
-                      </button>
-                    )}
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-2 text-[10px] px-2 py-1 rounded-md bg-emerald-50/50">
-                    <span className="font-medium text-emerald-700">Pro</span>
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                    <span className="text-black/50">
-                      {premiumPromptsUsed >= premiumPromptsLimit
-                        ? "Free models"
-                        : `${premiumPromptsLimit - premiumPromptsUsed} prompts`}
-                    </span>
-                  </div>
-                )}
                 <select
                   value={focusModel}
-                  onMouseDown={(e) => e.stopPropagation()} // Prevent selection clearing
+                  onMouseDown={(e) => e.stopPropagation()}
                   onChange={(e) => {
                     e.stopPropagation();
                     setFocusModel(e.target.value as typeof focusModel);
@@ -3716,10 +3517,10 @@ export default function AppPage() {
               exit={{ opacity: 0, scale: 0.98, y: 10 }}
               className="fixed inset-0 z-[201] flex items-center justify-center p-6 pointer-events-none"
             >
-              <div className="bg-[#f5f3ef] rounded-2xl shadow-2xl max-w-md w-full p-8 pointer-events-auto border border-black/[0.03]">
+              <div className="bg-[#f5f3ef] rounded-2xl shadow-2xl max-w-md w-full p-8 pointer-events-auto border border-black/[0.06]">
                 <div className="flex items-center justify-between mb-6">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center">
+                    <div className="w-10 h-10 rounded-xl bg-black flex items-center justify-center">
                       <CheckCheck size={20} className="text-white" />
                     </div>
                     <div>
@@ -3780,7 +3581,7 @@ export default function AppPage() {
                       setShowQuickCheckBetaModal(false);
                       handleToggleQuickCheck();
                     }}
-                    className="flex-1 px-4 py-3 bg-gradient-to-r from-violet-600 to-purple-600 text-white rounded-xl text-sm font-medium hover:from-violet-700 hover:to-purple-700 transition-all shadow-lg shadow-violet-500/20"
+                    className="flex-1 px-4 py-3 bg-black text-white rounded-xl text-sm font-medium hover:bg-black/90 transition-all shadow-lg shadow-black/10"
                   >
                     Try Quick Check
                   </button>
