@@ -187,28 +187,6 @@ function AppDemo() {
         </div>
       </div>
 
-      {/* Floating feature hints */}
-      <motion.div
-        animate={{ y: [0, -6, 0] }}
-        transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
-        className="absolute -right-2 sm:-right-4 top-24 bg-white rounded-xl shadow-lg border border-neutral-200 px-3 py-2 hidden lg:block"
-      >
-        <div className="flex items-center gap-2">
-          <Eye size={14} className="text-blue-500" />
-          <span className="text-xs font-medium text-neutral-600">Find Synonyms</span>
-        </div>
-      </motion.div>
-
-      <motion.div
-        animate={{ y: [0, 6, 0] }}
-        transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut", delay: 0.5 }}
-        className="absolute -left-2 sm:-left-4 bottom-32 bg-white rounded-xl shadow-lg border border-neutral-200 px-3 py-2 hidden lg:block"
-      >
-        <div className="flex items-center gap-2">
-          <ListTree size={14} className="text-amber-500" />
-          <span className="text-xs font-medium text-neutral-600">Extract Claims</span>
-        </div>
-      </motion.div>
     </div>
   );
 }
@@ -508,8 +486,8 @@ export default function Home() {
             viewport={{ once: true }}
           >
             <div className="text-3xl sm:text-4xl lg:text-5xl font-medium text-white leading-tight mb-8">
-              "I used to spend hours editing. Now I select, click, and it's{" "}
-              <span className="text-blue-400">done</span>."
+              "I used to switch tabs between Docs and GPT all day. Now it&apos;s one unified hub — and I stay{" "}
+              <span className="text-blue-400">focused</span>."
             </div>
             <div className="text-neutral-400">
               — Writer, 3x faster with Eliee
@@ -562,19 +540,19 @@ export default function Home() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ delay: 0.1 }}
-              className="p-8 rounded-2xl bg-blue-600 text-white relative overflow-hidden"
+              className="p-8 rounded-2xl bg-black text-white relative overflow-hidden border border-black/10"
             >
-              <div className="absolute top-0 right-0 px-3 py-1 bg-blue-500 text-xs font-semibold rounded-bl-lg">
+              <div className="absolute top-0 right-0 px-3 py-1 bg-blue-600/15 text-blue-100 border-l border-b border-blue-500/20 text-xs font-semibold rounded-bl-lg">
                 POPULAR
               </div>
               <div className="text-lg font-semibold mb-1">Pro</div>
               <div className="flex items-baseline gap-1 mb-6">
                 <span className="text-4xl font-bold">$9.99</span>
-                <span className="text-blue-200">/mo</span>
+                <span className="text-white/60">/mo</span>
               </div>
               <ul className="space-y-3 mb-8">
-                {["Unlimited documents", "150 prompts/month", "Priority support"].map((item, i) => (
-                  <li key={i} className="flex items-center gap-3 text-blue-100">
+                {["Unlimited documents", "150 high-quality prompts/mo (Claude + GPT-5)", "Priority support"].map((item, i) => (
+                  <li key={i} className="flex items-center gap-3 text-white/80">
                     <Check size={18} className="text-blue-300" />
                     {item}
                   </li>
@@ -582,7 +560,7 @@ export default function Home() {
               </ul>
               <a
                 href="/pricing"
-                className="block w-full py-3.5 rounded-xl bg-white text-blue-600 font-semibold text-center hover:bg-blue-50 transition-colors"
+                className="block w-full py-3.5 rounded-xl bg-white text-black font-semibold text-center transition-colors hover:bg-blue-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-black active:bg-blue-50"
               >
                 Upgrade
               </a>

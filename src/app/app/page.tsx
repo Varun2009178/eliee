@@ -1861,7 +1861,7 @@ export default function AppPage() {
             <div className="py-2.5 px-3 rounded-lg bg-blue-600 text-white text-center shadow-sm shadow-blue-600/10">
               <div className="text-xs font-semibold">Eliee Pro</div>
               <div className="text-[11px] text-white/80">
-                {premiumPromptsLimit - premiumPromptsUsed} prompts remaining
+                {premiumPromptsLimit - premiumPromptsUsed} high-quality prompts remaining
               </div>
             </div>
           ) : (
@@ -3000,7 +3000,7 @@ export default function AppPage() {
         )}
       </AnimatePresence>
 
-      {/* Pro Upgrade Modal - Warm theme matching landing page */}
+      {/* Pro Upgrade Modal - Black/white with subtle blue accent */}
       <AnimatePresence>
         {showProModal && (
           <>
@@ -3018,9 +3018,9 @@ export default function AppPage() {
               transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
               className="fixed inset-0 z-[201] flex items-center justify-center p-6 pointer-events-none"
             >
-              <div className="bg-[#f5f3ef] rounded-2xl shadow-2xl shadow-black/10 w-[380px] pointer-events-auto border border-black/[0.08] overflow-hidden">
+              <div className="bg-white rounded-2xl shadow-2xl shadow-black/10 w-[380px] pointer-events-auto border border-black/[0.08] overflow-hidden">
                 {/* Header */}
-                <div className="px-6 py-5 border-b border-black/[0.06] flex items-center justify-between">
+                <div className="px-6 py-5 border-b border-black/[0.06] flex items-center justify-between bg-white">
                   <div>
                     <h3 className="text-lg text-black/90" style={{ fontFamily: "Georgia, serif", fontStyle: "italic" }}>Upgrade to Pro</h3>
                     <p className="text-[13px] text-black/40 mt-0.5">Unlock premium AI features</p>
@@ -3034,7 +3034,7 @@ export default function AppPage() {
                 </div>
 
                 {/* Content */}
-                <div className="px-6 py-5 bg-white/50">
+                <div className="px-6 py-5 bg-white">
                   <div className="space-y-3 mb-6">
                     <div className="flex items-start gap-3 text-[13px] text-black/70">
                       <div className="w-5 h-5 rounded-full bg-black flex items-center justify-center flex-shrink-0 mt-0.5">
@@ -3050,8 +3050,8 @@ export default function AppPage() {
                         <Check size={10} className="text-white" />
                       </div>
                       <div>
-                        <p className="font-medium text-black/80">150 premium chat prompts/month</p>
-                        <p className="text-[11px] text-black/40 mt-0.5">Claude & GPT-4 for conversations</p>
+                        <p className="font-medium text-black/80">150 high-quality chat prompts/month</p>
+                        <p className="text-[11px] text-black/40 mt-0.5">Claude + GPT-5 for conversations</p>
                       </div>
                     </div>
                     <div className="flex items-start gap-3 text-[13px] text-black/70">
@@ -3084,13 +3084,13 @@ export default function AppPage() {
                       setShowProModal(false);
                       router.push("/pricing");
                     }}
-                    className="w-full py-3 bg-black text-white rounded-xl font-medium text-sm hover:bg-black/90 transition-all"
+                    className="w-full py-3 bg-black text-white rounded-xl font-medium text-sm transition-all shadow-sm shadow-black/10 hover:bg-black/90 hover:shadow-blue-600/10 active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
                   >
                     Upgrade to Pro
                   </button>
                 </div>
 
-                <div className="px-6 py-3 border-t border-black/[0.04] bg-[#ebe7e0]">
+                <div className="px-6 py-3 border-t border-black/[0.04] bg-white">
                   <p className="text-[11px] text-black/40 text-center">
                     Cancel anytime
                   </p>
@@ -3101,7 +3101,7 @@ export default function AppPage() {
         )}
       </AnimatePresence>
 
-      {/* Upgrade Success Modal - Warm celebratory theme */}
+      {/* Upgrade Success Modal - Black/white with subtle blue accent */}
       <AnimatePresence>
         {showUpgradeSuccess && (
           <>
@@ -3119,11 +3119,11 @@ export default function AppPage() {
               transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
               className="fixed inset-0 z-[251] flex items-center justify-center p-6 pointer-events-none"
             >
-              <div className="bg-[#f5f3ef] rounded-2xl shadow-2xl shadow-black/10 w-full max-w-[400px] pointer-events-auto border border-black/[0.08] overflow-hidden">
+              <div className="bg-white rounded-2xl shadow-2xl shadow-black/10 w-full max-w-[400px] pointer-events-auto border border-black/[0.08] overflow-hidden">
                 {/* Celebration Header */}
-                <div className="relative px-6 py-6 border-b border-black/[0.06] bg-gradient-to-br from-emerald-50 to-green-50">
+                <div className="relative px-6 py-6 border-b border-black/[0.06] bg-gradient-to-br from-blue-50 to-white">
                   <div className="relative flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-xl bg-black flex items-center justify-center">
+                    <div className="w-12 h-12 rounded-xl bg-blue-600 flex items-center justify-center shadow-sm shadow-blue-600/20">
                       <Check size={24} className="text-white" strokeWidth={3} />
                     </div>
                     <div>
@@ -3133,7 +3133,7 @@ export default function AppPage() {
                   </div>
                 </div>
 
-                <div className="px-6 py-5 bg-white/50">
+                <div className="px-6 py-5 bg-white">
                   {/* Features unlocked */}
                   <p className="text-[11px] font-medium text-black/40 uppercase tracking-wider mb-4">Now unlocked</p>
                   <div className="space-y-3 mb-5">
@@ -3147,7 +3147,7 @@ export default function AppPage() {
                       <div className="w-5 h-5 rounded-full bg-black flex items-center justify-center">
                         <Check size={10} className="text-white" />
                       </div>
-                      <span>150 premium chat prompts/month</span>
+                      <span>150 high-quality chat prompts/month (Claude + GPT-5)</span>
                     </div>
                     <div className="flex items-center gap-3 text-[13px] text-black/70">
                       <div className="w-5 h-5 rounded-full bg-black flex items-center justify-center">
@@ -3164,7 +3164,7 @@ export default function AppPage() {
                   </div>
 
                   {/* Billing info */}
-                  <div className="p-3 rounded-xl bg-[#ebe7e0] border border-black/[0.04] mb-5">
+                  <div className="p-3 rounded-xl bg-blue-50 border border-blue-100 mb-5">
                     <div className="flex items-center justify-between text-[12px]">
                       <span className="text-black/40">Next billing date</span>
                       <span className="text-black/70 font-medium">
@@ -3179,7 +3179,7 @@ export default function AppPage() {
 
                   <button
                     onClick={() => setShowUpgradeSuccess(false)}
-                    className="w-full py-3 bg-black text-white rounded-xl font-medium text-sm hover:bg-black/90 transition-all"
+                    className="w-full py-3 bg-black text-white rounded-xl font-medium text-sm transition-all shadow-sm shadow-black/10 hover:bg-black/90 hover:shadow-blue-600/10 active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
                   >
                     Start using Pro
                   </button>
@@ -3246,8 +3246,8 @@ export default function AppPage() {
                     <p className="text-[13px] text-black/60 leading-relaxed mb-4">
                       {limitReachedAction === 'chat'
                         ? isPro
-                          ? "You've used your 150 premium chat prompts this month. Upgrade for more premium access, or continue with free models."
-                          : "You've used all 10 free chat messages. Upgrade to Pro for 150 premium chat prompts/month and more access."
+                          ? "You've used your 150 high-quality chat prompts this month. Upgrade for more high-quality access, or continue with free models."
+                          : "You've used all 10 free chat messages. Upgrade to Pro for 150 high-quality chat prompts/month and more access."
                         : limitReachedAction === 'quick_check'
                         ? "You've used all 3 free Quick Checks. Upgrade to Pro for unlimited Quick Check access."
                         : "You've reached your limit for this feature. Upgrade to Pro for unlimited access."}
@@ -3268,8 +3268,8 @@ export default function AppPage() {
                           <Check size={10} className="text-white" />
                         </div>
                         <div>
-                          <p className="font-medium text-black/80">150 premium chat prompts/month</p>
-                          <p className="text-[11px] text-black/40 mt-0.5">Claude & GPT-4 for conversations</p>
+                          <p className="font-medium text-black/80">150 high-quality chat prompts/month</p>
+                          <p className="text-[11px] text-black/40 mt-0.5">Claude + GPT-5 for conversations</p>
                         </div>
                       </div>
                       <div className="flex items-start gap-3 text-[13px] text-black/70">
@@ -3355,7 +3355,7 @@ export default function AppPage() {
                 {/* Content */}
                 <div className="px-6 py-5 bg-white/50">
                   <p className="text-[13px] text-black/60 mb-5 leading-relaxed">
-                    Upgrade to Pro for <span className="text-black/80 font-medium">unlimited documents</span> plus premium AI with Claude & GPT-4.
+                    Upgrade to Pro for <span className="text-black/80 font-medium">unlimited documents</span> plus premium AI with Claude + GPT-5.
                   </p>
 
                   <div className="space-y-3 mb-6 p-4 bg-[#ebe7e0] rounded-xl border border-black/[0.04]">
@@ -3369,7 +3369,7 @@ export default function AppPage() {
                       <div className="w-5 h-5 rounded-full bg-black flex items-center justify-center">
                         <Check size={10} className="text-white" />
                       </div>
-                      <span>150 premium chat prompts/month</span>
+                      <span>150 high-quality chat prompts/month (Claude + GPT-5)</span>
                     </div>
                     <div className="flex items-center gap-3 text-[13px] text-black/70">
                       <div className="w-5 h-5 rounded-full bg-black flex items-center justify-center">

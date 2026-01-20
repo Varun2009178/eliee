@@ -83,8 +83,8 @@ export default function PricingPage() {
   const proFeatures = [
     { text: "Unlimited documents", icon: FileText, included: true, highlight: true },
     { text: "Unlimited visualizations", icon: Eye, included: true },
-    { text: "150 premium chat prompts/mo", icon: Zap, included: true, highlight: true },
-    { text: "Claude & GPT-4 for chat", icon: Brain, included: true, highlight: true },
+    { text: "150 high-quality prompts/mo (Claude + GPT-5)", icon: Zap, included: true, highlight: true },
+    { text: "Claude + GPT-5 for chat", icon: Brain, included: true, highlight: true },
     { text: "Unlimited AI actions", icon: Check, included: true, description: "Verify, synonyms, expand, simplify - all free" },
     { text: "Graph-aware AI", icon: Check, included: true },
     { text: "Priority support", icon: Check, included: true },
@@ -150,13 +150,13 @@ export default function PricingPage() {
 
           {/* Pro */}
           <div className="bg-gradient-to-br from-black to-black/90 rounded-2xl p-8 shadow-xl relative overflow-hidden">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-violet-500/20 to-transparent rounded-full blur-2xl" />
-            <div className="absolute bottom-0 left-0 w-24 h-24 bg-gradient-to-tr from-emerald-500/10 to-transparent rounded-full blur-xl" />
+            <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-blue-500/15 to-transparent rounded-full blur-2xl" />
+            <div className="absolute bottom-0 left-0 w-24 h-24 bg-gradient-to-tr from-blue-400/10 to-transparent rounded-full blur-xl" />
 
             <div className="relative">
               <div className="flex items-center gap-2 mb-6">
                 <h2 className="text-xl font-semibold text-white">Pro</h2>
-                <span className="px-2 py-0.5 bg-gradient-to-r from-violet-500 to-purple-500 text-white text-[10px] font-bold rounded-full uppercase tracking-wider">
+                <span className="px-2 py-0.5 bg-blue-600/20 border border-blue-500/20 text-blue-100 text-[10px] font-bold rounded-full uppercase tracking-wider">
                   Popular
                 </span>
               </div>
@@ -169,12 +169,12 @@ export default function PricingPage() {
               <ul className="space-y-4 mb-8">
                 {proFeatures.map((feature, i) => (
                   <li key={i} className={`flex items-center gap-3 text-sm ${feature.highlight ? 'text-white' : 'text-white/70'}`}>
-                    <div className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 ${feature.highlight ? 'bg-gradient-to-br from-violet-500 to-purple-500' : 'bg-white/10'}`}>
+                    <div className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 ${feature.highlight ? 'bg-blue-600' : 'bg-white/10'}`}>
                       <Check size={12} className="text-white" />
                     </div>
                     {feature.text}
                     {feature.highlight && (
-                      <span className="ml-auto text-[10px] text-violet-400 font-medium">NEW</span>
+                      <span className="ml-auto text-[10px] text-blue-200 font-medium">NEW</span>
                     )}
                   </li>
                 ))}
@@ -247,7 +247,7 @@ export default function PricingPage() {
                 <tr className="border-b border-black/[0.04]">
                   <td className="p-4 text-black/60">Chat AI Model</td>
                   <td className="p-4 text-center text-black/50">Free models</td>
-                  <td className="p-4 text-center font-medium text-black/80 bg-black/[0.02]">150 Claude/GPT-4, then free</td>
+                  <td className="p-4 text-center font-medium text-black/80 bg-black/[0.02]">150 Claude/GPT-5, then free</td>
                 </tr>
                 <tr className="border-b border-black/[0.04]">
                   <td className="p-4 text-black/60">AI Actions (verify, synonyms, etc.)</td>
@@ -279,7 +279,7 @@ export default function PricingPage() {
             </div>
             <div className="bg-white rounded-xl border border-black/[0.06] p-5 shadow-sm">
               <h3 className="text-sm text-black/70 font-medium mb-2">What's the difference between free and premium AI?</h3>
-              <p className="text-sm text-black/40">Pro gives you 150 premium chat prompts/month with Claude and GPT-4. After that, chat continues with free models. All other AI actions (verify, synonyms, expand, simplify) are always unlimited and use free models for everyone. Your 150 premium chat prompts reset monthly.</p>
+              <p className="text-sm text-black/40">Pro gives you 150 high-quality chat prompts/month with Claude and GPT-5 (and more). After that, chat continues with free models. All other AI actions (verify, synonyms, expand, simplify) are always unlimited and use free models for everyone. Your 150 high-quality prompts reset monthly.</p>
             </div>
             <div className="bg-white rounded-xl border border-black/[0.06] p-5 shadow-sm">
               <h3 className="text-sm text-black/70 font-medium mb-2">Can I cancel anytime?</h3>
